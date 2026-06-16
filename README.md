@@ -2,6 +2,10 @@
 
 Ứng dụng web đọc light novel từ file cục bộ: Markdown (`.md`), text (`.txt`) và PDF (`.pdf`).
 
+## Demo
+
+![Light Novel Reader demo](docs/demo.png)
+
 ## Tính năng MVP
 
 - Kéo-thả hoặc chọn file từ máy.
