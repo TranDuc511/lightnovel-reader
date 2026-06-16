@@ -27,7 +27,10 @@ npm run dev
 ```bash
 npm test
 npm run build
+npm run dist:win
 ```
+
+The Windows portable executable is generated in `../lightnovel-reader-release/` as `LightNovelReader-<version>-portable.exe`.
 
 ## Structure
 

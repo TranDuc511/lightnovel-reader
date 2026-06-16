@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A browser-based light novel reader for Markdown, TXT, and PDF files.",
+  "main": "electron/main.cjs",
+  "description": "A desktop light novel reader for Markdown, TXT, and PDF files.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "electron": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win portable --x64 --config.directories.output=../lightnovel-reader-release"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -28,8 +31,35 @@
     "@types/dompurify": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
     "jsdom": "latest",
     "typescript": "latest",
     "vitest": "latest"
+  },
+  "build": {
+    "appId": "com.tranduc511.lightnovelreader",
+    "productName": "Light Novel Reader",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "LightNovelReader-${version}-portable.exe"
+    }
   }
 }
