@@ -50,7 +50,7 @@ export async function parseNovelFile(file: File): Promise<ParsedNovel> {
   const title = file.name.replace(/\.[^.]+$/, '');
 
   if (kind === 'unsupported') {
-    throw new Error('Định dạng chưa hỗ trợ. Hãy chọn file .md, .txt hoặc .pdf.');
+    throw new Error('Unsupported format. Please choose a .md, .txt, or .pdf file.');
   }
 
   if (kind === 'pdf') {

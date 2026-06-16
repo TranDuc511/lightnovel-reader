@@ -1,35 +1,35 @@
 # Light Novel Reader
 
-Ứng dụng web đọc light novel từ file cục bộ: Markdown (`.md`), text (`.txt`) và PDF (`.pdf`).
+A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), and PDF (`.pdf`) files.
 
 ## Demo
 
 ![Light Novel Reader demo](docs/demo.png)
 
-## Tính năng MVP
+## MVP Features
 
-- Kéo-thả hoặc chọn file từ máy.
-- Render Markdown an toàn thành HTML.
-- Đọc TXT và giữ xuống dòng theo đoạn.
-- Trích xuất nội dung PDF bằng `pdfjs-dist`.
-- Tuỳ chỉnh theme sáng/tối/sepia, cỡ chữ, độ rộng dòng.
-- Không upload file; xử lý trong trình duyệt.
+- Drag and drop or choose a file from your device.
+- Safely render Markdown as HTML.
+- Read TXT files while preserving paragraph line breaks.
+- Extract PDF text with `pdfjs-dist`.
+- Customize light/dark/sepia themes, font size, line height, and content width.
+- No uploads; files are processed in the browser.
 
-## Chạy local
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Kiểm thử/build
+## Test/build
 
 ```bash
 npm test
 npm run build
 ```
 
-## Cấu trúc
+## Structure
 
 ```text
 src/

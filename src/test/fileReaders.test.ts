@@ -10,17 +10,17 @@ describe('file reader helpers', () => {
   });
 
   it('renders markdown and strips unsafe scripts', () => {
-    const html = renderMarkdown('# Chương 1\n\n**Xin chào**<script>alert(1)</script>');
+    const html = renderMarkdown('# Chapter 1\n\n**Hello**<script>alert(1)</script>');
 
-    expect(html).toContain('<h1>Chương 1</h1>');
-    expect(html).toContain('<strong>Xin chào</strong>');
+    expect(html).toContain('<h1>Chapter 1</h1>');
+    expect(html).toContain('<strong>Hello</strong>');
     expect(html).not.toContain('<script>');
   });
 
   it('converts txt paragraphs into readable html', () => {
-    const html = txtToHtml('Dòng một\nDòng hai\n\nĐoạn mới');
+    const html = txtToHtml('Line one\nLine two\n\nNew paragraph');
 
-    expect(html).toContain('<p>Dòng một<br>Dòng hai</p>');
-    expect(html).toContain('<p>Đoạn mới</p>');
+    expect(html).toContain('<p>Line one<br>Line two</p>');
+    expect(html).toContain('<p>New paragraph</p>');
   });
 });

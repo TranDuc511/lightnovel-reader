@@ -15,10 +15,10 @@ export function ReaderControls({
   onFileSelect
 }: ReaderControlsProps) {
   return (
-    <aside className="controls" aria-label="Tuỳ chỉnh đọc truyện">
+    <aside className="controls" aria-label="Reader settings">
       <label className="file-picker">
         <Upload size={18} />
-        <span>Chọn file</span>
+        <span>Choose file</span>
         <input
           type="file"
           accept=".md,.markdown,.txt,.pdf,application/pdf,text/plain,text/markdown"
@@ -30,23 +30,23 @@ export function ReaderControls({
       </label>
 
       <button type="button" onClick={() => onThemeChange(preferences.theme)}>
-        <Moon size={18} /> Đổi theme
+        <Moon size={18} /> Switch theme
       </button>
 
       <ControlStepper
-        label="Cỡ chữ"
+        label="Font size"
         value={`${preferences.fontSize}px`}
         onDecrease={() => onPreferenceChange('fontSize', -1)}
         onIncrease={() => onPreferenceChange('fontSize', 1)}
       />
       <ControlStepper
-        label="Giãn dòng"
+        label="Line height"
         value={preferences.lineHeight.toFixed(2)}
         onDecrease={() => onPreferenceChange('lineHeight', -0.05)}
         onIncrease={() => onPreferenceChange('lineHeight', 0.05)}
       />
       <ControlStepper
-        label="Độ rộng"
+        label="Width"
         value={`${preferences.contentWidth}ch`}
         onDecrease={() => onPreferenceChange('contentWidth', -4)}
         onIncrease={() => onPreferenceChange('contentWidth', 4)}
@@ -70,11 +70,11 @@ function ControlStepper({
     <div className="stepper">
       <span>{label}</span>
       <div>
-        <button type="button" aria-label={`Giảm ${label}`} onClick={onDecrease}>
+        <button type="button" aria-label={`Decrease ${label}`} onClick={onDecrease}>
           <Minus size={16} />
         </button>
         <output>{value}</output>
-        <button type="button" aria-label={`Tăng ${label}`} onClick={onIncrease}>
+        <button type="button" aria-label={`Increase ${label}`} onClick={onIncrease}>
           <Plus size={16} />
         </button>
       </div>
