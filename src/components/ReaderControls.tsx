@@ -21,7 +21,7 @@ export function ReaderControls({
         <span>Choose file</span>
         <input
           type="file"
-          accept=".md,.markdown,.txt,.pdf,application/pdf,text/plain,text/markdown"
+          accept=".md,.markdown,.txt,.pdf,.epub,application/pdf,application/epub+zip,text/plain,text/markdown"
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             if (file) onFileSelect(file);

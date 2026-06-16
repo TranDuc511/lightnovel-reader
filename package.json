@@ -17,6 +17,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "dompurify": "latest",
+    "jszip": "^3.10.1",
     "lucide-react": "latest",
     "marked": "latest",
     "pdfjs-dist": "latest",

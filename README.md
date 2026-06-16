@@ -1,6 +1,6 @@
 # Light Novel Reader
 
-A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), and PDF (`.pdf`) files.
+A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), PDF (`.pdf`), and EPUB (`.epub`) files.
 
 ## Demo
 
@@ -12,6 +12,7 @@ A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), an
 - Safely render Markdown as HTML.
 - Read TXT files while preserving paragraph line breaks.
 - Extract PDF text with `pdfjs-dist`.
+- Read EPUB spine content and preserve embedded illustration images.
 - Customize light/dark/sepia themes, font size, line height, and content width.
 - No uploads; files are processed in the browser.
 

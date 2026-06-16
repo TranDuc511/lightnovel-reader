@@ -14,7 +14,7 @@ import {
 
 const sampleHtml = `
   <h1>Drop a light novel here</h1>
-  <p>The app supports <strong>Markdown</strong>, <strong>TXT</strong>, and <strong>PDF</strong>. Files are processed directly in your browser and never uploaded to a server.</p>
+  <p>The app supports <strong>Markdown</strong>, <strong>TXT</strong>, <strong>PDF</strong>, and <strong>EPUB</strong>. Files are processed directly in your browser and never uploaded to a server.</p>
   <p>Tip: use Markdown to preserve chapter titles, paragraphs, dialogue, and editing notes.</p>
 `;
 
@@ -76,7 +76,7 @@ function App() {
           <BookOpen size={28} />
           <div>
             <strong>Light Novel Reader</strong>
-            <span>MD · TXT · PDF</span>
+            <span>MD · TXT · PDF · EPUB</span>
           </div>
         </div>
         <ReaderControls
