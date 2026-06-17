@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { detectFileKind, parseNovelFile, renderMarkdown, txtToHtml } from '../lib/fileReaders';
 
 describe('file reader helpers', () => {
@@ -26,11 +26,7 @@ describe('file reader helpers', () => {
     expect(html).toContain('<p>New paragraph</p>');
   });
 
-  it('parses EPUB spine content and preserves illustration images as blob URLs', async () => {
-    const createObjectURL = vi
-      .spyOn(URL, 'createObjectURL')
-      .mockReturnValue('blob:cover-illustration');
-
+  it('parses EPUB spine content and preserves illustration images as durable data URLs', async () => {
     const epubFile = await createIllustratedEpubFile();
     const parsed = await parseNovelFile(epubFile);
 
@@ -38,11 +34,8 @@ describe('file reader helpers', () => {
     expect(parsed.title).toBe('illustrated-novel');
     expect(parsed.rawText).toContain('A chapter with an illustration.');
     expect(parsed.html).toContain('<h1>Chapter One</h1>');
-    expect(parsed.html).toContain('src="blob:cover-illustration"');
+    expect(parsed.html).toContain('src="data:image/png;base64,iVBORw=="');
     expect(parsed.html).toContain('alt="Hero illustration"');
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-
-    createObjectURL.mockRestore();
   });
 });
 

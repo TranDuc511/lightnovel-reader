@@ -13,8 +13,14 @@ A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), PD
 - Read TXT files while preserving paragraph line breaks.
 - Extract PDF text with `pdfjs-dist`.
 - Read EPUB spine content and preserve embedded illustration images.
+- Import public Google Drive sharing links for supported file types.
+- Save opened stories to a local Library tab for quick reopening.
 - Customize light/dark/sepia themes, font size, line height, and content width.
 - No uploads; files are processed in the browser.
+
+## Google Drive import
+
+Paste a Google Drive file sharing link into the import box. The file must be shared as **Anyone with the link** and must be one of the supported formats: `.md`, `.txt`, `.pdf`, or `.epub`.
 
 ## Run locally
 
@@ -39,6 +45,8 @@ The Windows portable executable is generated in `../lightnovel-reader-release/` 
 src/
   components/ReaderControls.tsx
   lib/fileReaders.ts
+  lib/googleDrive.ts
+  lib/library.ts
   lib/preferences.ts
   test/*.test.ts
 ```

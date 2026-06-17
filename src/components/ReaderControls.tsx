@@ -1,4 +1,5 @@
-import { Minus, Moon, Plus, Upload } from 'lucide-react';
+import { useState } from 'react';
+import { Cloud, Minus, Moon, Plus, Upload } from 'lucide-react';
 import type { NumericPreference, ReaderPreferences, ThemeName } from '../lib/preferences';
 
 export type ReaderControlsProps = {
@@ -6,14 +7,18 @@ export type ReaderControlsProps = {
   onThemeChange: (theme: ThemeName) => void;
   onPreferenceChange: (key: NumericPreference, delta: number) => void;
   onFileSelect: (file: File) => void;
+  onDriveImport: (url: string) => void;
 };
 
 export function ReaderControls({
   preferences,
   onThemeChange,
   onPreferenceChange,
-  onFileSelect
+  onFileSelect,
+  onDriveImport
 }: ReaderControlsProps) {
+  const [driveUrl, setDriveUrl] = useState('');
+
   return (
     <aside className="controls" aria-label="Reader settings">
       <label className="file-picker">
@@ -28,6 +33,25 @@ export function ReaderControls({
           }}
         />
       </label>
+
+      <form
+        className="drive-import"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!driveUrl.trim()) return;
+          onDriveImport(driveUrl.trim());
+          setDriveUrl('');
+        }}
+      >
+        <Cloud size={18} />
+        <input
+          aria-label="Google Drive sharing link"
+          placeholder="Google Drive link"
+          value={driveUrl}
+          onChange={(event) => setDriveUrl(event.currentTarget.value)}
+        />
+        <button type="submit">Import</button>
+      </form>
 
       <button type="button" onClick={() => onThemeChange(preferences.theme)}>
         <Moon size={18} /> Switch theme

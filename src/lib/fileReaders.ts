@@ -6,10 +6,13 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 export type FileKind = 'markdown' | 'text' | 'pdf' | 'epub' | 'unsupported';
 
 export type ParsedNovel = {
+  id?: string;
   title: string;
   kind: Exclude<FileKind, 'unsupported'>;
   html: string;
   rawText: string;
+  source?: 'local' | 'google-drive';
+  savedAt?: string;
 };
 
 type EpubManifestItem = {
@@ -186,8 +189,8 @@ async function inlineEpubImages(
 
     let objectUrl = imageUrls.get(imagePath);
     if (!objectUrl) {
-      const blob = await imageFile.async('blob');
-      objectUrl = URL.createObjectURL(blob);
+      const base64 = await imageFile.async('base64');
+      objectUrl = `data:${getImageMimeType(imagePath)};base64,${base64}`;
       imageUrls.set(imagePath, objectUrl);
     }
 
@@ -255,6 +258,15 @@ function normalizeZipPath(path: string): string {
     });
 
   return parts.join('/');
+}
+
+function getImageMimeType(path: string): string {
+  const normalized = path.toLowerCase();
+  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) return 'image/jpeg';
+  if (normalized.endsWith('.gif')) return 'image/gif';
+  if (normalized.endsWith('.webp')) return 'image/webp';
+  if (normalized.endsWith('.svg')) return 'image/svg+xml';
+  return 'image/png';
 }
 
 function escapeHtml(value: string): string {
