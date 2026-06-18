@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createGoogleDriveDownloadUrl, extractGoogleDriveFileId, importGoogleDriveFile } from '../lib/googleDrive';
+import {
+  createGoogleDriveDownloadUrl,
+  createGoogleDriveProxyUrl,
+  extractGoogleDriveFileId,
+  importGoogleDriveFile
+} from '../lib/googleDrive';
 
 describe('Google Drive import helpers', () => {
   it('extracts file ids from common Google Drive share links', () => {
@@ -17,6 +22,10 @@ describe('Google Drive import helpers', () => {
     );
   });
 
+  it('builds a local proxy URL for browser development imports', () => {
+    expect(createGoogleDriveProxyUrl('abc123XYZ')).toBe('/api/google-drive-download?fileId=abc123XYZ');
+  });
+
   it('imports a Drive file response as a File with a name from content-disposition', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response('# Drive Novel', {
@@ -29,7 +38,7 @@ describe('Google Drive import helpers', () => {
 
     const file = await importGoogleDriveFile('https://drive.google.com/file/d/abc123XYZ/view', fetcher);
 
-    expect(fetcher).toHaveBeenCalledWith('https://drive.google.com/uc?export=download&id=abc123XYZ');
+    expect(fetcher).toHaveBeenCalledWith('/api/google-drive-download?fileId=abc123XYZ');
     expect(file.name).toBe('drive-novel.md');
     expect(file.type).toBe('text/markdown');
     expect(await file.text()).toBe('# Drive Novel');
