@@ -15,6 +15,7 @@ A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), PD
 - Read EPUB spine content and preserve embedded illustration images.
 - Import public Google Drive sharing links for supported file types.
 - Save opened stories to a local Library tab for quick reopening.
+- Save reading progress per story and resume from the last position.
 - Customize light/dark/sepia themes, font size, line height, and content width.
 - No uploads; files are processed in the browser.
 

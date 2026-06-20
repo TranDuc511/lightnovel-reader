@@ -197,8 +197,50 @@ button.danger {
   border-radius: 1rem;
   background: color-mix(in srgb, currentColor 8%, transparent);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 0.5rem;
   align-items: center;
+  position: sticky;
+  top: 0.75rem;
+  z-index: 5;
+  backdrop-filter: blur(14px);
+}
+
+.status-message,
+.progress-pill,
+.status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.progress-pill {
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  background: color-mix(in srgb, white 26%, transparent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-dark .progress-pill {
+  background: color-mix(in srgb, white 8%, transparent);
+}
+
+.bookmark-button {
+  padding: 0.3rem 0.65rem;
+  background: color-mix(in srgb, white 26%, transparent);
+  font-weight: 700;
+}
+
+.theme-dark .bookmark-button {
+  background: color-mix(in srgb, white 8%, transparent);
 }
 
 .tabs {
