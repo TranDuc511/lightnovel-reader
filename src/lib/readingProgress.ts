@@ -5,6 +5,7 @@ export type ReadingProgress = {
 };
 
 export type ReadingBookmark = {
+  bookmarkId: string;
   id: string;
   ratio: number;
   createdAt: string;
@@ -14,7 +15,7 @@ const READING_PROGRESS_STORAGE_KEY = 'lightnovel-reader.reading-progress.v1';
 const READING_BOOKMARK_STORAGE_KEY = 'lightnovel-reader.bookmarks.v1';
 
 type ProgressMap = Record<string, ReadingProgress>;
-type BookmarkMap = Record<string, ReadingBookmark>;
+type BookmarkMap = Record<string, ReadingBookmark[]>;
 
 export function calculateReadingProgress(scrollTop: number, scrollHeight: number, clientHeight: number): number {
   const scrollableHeight = scrollHeight - clientHeight;
@@ -38,8 +39,8 @@ export function loadReadingProgress(id: string, storage: Storage = window.localS
   return readProgressMap(storage)[id] ?? null;
 }
 
-export function loadReadingBookmark(id: string, storage: Storage = window.localStorage): ReadingBookmark | null {
-  return readBookmarkMap(storage)[id] ?? null;
+export function loadReadingBookmarks(id: string, storage: Storage = window.localStorage): ReadingBookmark[] {
+  return readBookmarkMap(storage)[id] ?? [];
 }
 
 export function saveReadingProgress(
@@ -68,19 +69,36 @@ export function saveReadingBookmark(
   id: string,
   ratio: number,
   storage: Storage = window.localStorage,
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  createBookmarkId: () => string = defaultCreateBookmarkId
 ): ReadingBookmark {
   const bookmark: ReadingBookmark = {
+    bookmarkId: createBookmarkId(),
     id,
     ratio: clampRatio(ratio),
     createdAt: now().toISOString()
   };
   const bookmarkMap = readBookmarkMap(storage);
-  storage.setItem(READING_BOOKMARK_STORAGE_KEY, JSON.stringify({ ...bookmarkMap, [id]: bookmark }));
+  const nextBookmarks = sortBookmarks([bookmark, ...(bookmarkMap[id] ?? [])]);
+
+  storage.setItem(READING_BOOKMARK_STORAGE_KEY, JSON.stringify({ ...bookmarkMap, [id]: nextBookmarks }));
   return bookmark;
 }
 
-export function removeReadingBookmark(id: string, storage: Storage = window.localStorage): void {
+export function removeReadingBookmark(id: string, bookmarkId: string, storage: Storage = window.localStorage): void {
+  const bookmarkMap = readBookmarkMap(storage);
+  const nextBookmarks = (bookmarkMap[id] ?? []).filter((bookmark) => bookmark.bookmarkId !== bookmarkId);
+
+  if (nextBookmarks.length === 0) {
+    delete bookmarkMap[id];
+  } else {
+    bookmarkMap[id] = nextBookmarks;
+  }
+
+  storage.setItem(READING_BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkMap));
+}
+
+export function removeReadingBookmarks(id: string, storage: Storage = window.localStorage): void {
   const bookmarkMap = readBookmarkMap(storage);
   delete bookmarkMap[id];
   storage.setItem(READING_BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkMap));
@@ -111,11 +129,44 @@ function readBookmarkMap(storage: Storage): BookmarkMap {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
 
     return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, ReadingBookmark] => isReadingBookmark(entry[1]))
+      Object.entries(parsed)
+        .map(([storyId, value]) => [storyId, normalizeBookmarks(storyId, value)] as const)
+        .filter((entry): entry is [string, ReadingBookmark[]] => entry[1].length > 0)
     );
   } catch {
     return {};
   }
+}
+
+function normalizeBookmarks(storyId: string, value: unknown): ReadingBookmark[] {
+  if (Array.isArray(value)) {
+    return sortBookmarks(value.map((bookmark) => sanitizeBookmark(storyId, bookmark)).filter(isNonNullable));
+  }
+
+  const legacyBookmark = sanitizeBookmark(storyId, value);
+  return legacyBookmark ? [legacyBookmark] : [];
+}
+
+function sanitizeBookmark(storyId: string, value: unknown): ReadingBookmark | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const bookmark = value as Record<string, unknown>;
+  const id = typeof bookmark.id === 'string' ? bookmark.id : storyId;
+  const ratio = typeof bookmark.ratio === 'number' ? bookmark.ratio : null;
+  const createdAt = typeof bookmark.createdAt === 'string' ? bookmark.createdAt : null;
+
+  if (ratio === null || createdAt === null || ratio < 0 || ratio > 1) return null;
+
+  const bookmarkId = typeof bookmark.bookmarkId === 'string' && bookmark.bookmarkId.length > 0
+    ? bookmark.bookmarkId
+    : `legacy-${id}-${createdAt}-${Math.round(ratio * 1000)}`;
+
+  return {
+    bookmarkId,
+    id,
+    ratio,
+    createdAt
+  };
 }
 
 function isReadingProgress(value: unknown): value is ReadingProgress {
@@ -130,19 +181,23 @@ function isReadingProgress(value: unknown): value is ReadingProgress {
   );
 }
 
-function isReadingBookmark(value: unknown): value is ReadingBookmark {
-  if (!value || typeof value !== 'object') return false;
-  const bookmark = value as Record<string, unknown>;
-  return (
-    typeof bookmark.id === 'string' &&
-    typeof bookmark.ratio === 'number' &&
-    bookmark.ratio >= 0 &&
-    bookmark.ratio <= 1 &&
-    typeof bookmark.createdAt === 'string'
-  );
+function sortBookmarks(bookmarks: ReadingBookmark[]): ReadingBookmark[] {
+  return [...bookmarks].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+function defaultCreateBookmarkId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `bookmark-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function clampRatio(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+function isNonNullable<T>(value: T | null | undefined): value is T {
+  return value != null;
 }

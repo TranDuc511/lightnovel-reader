@@ -1,11 +1,12 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   calculateReadingProgress,
   calculateScrollTopForProgress,
   formatReadingProgress,
-  loadReadingBookmark,
+  loadReadingBookmarks,
   loadReadingProgress,
   removeReadingBookmark,
+  removeReadingBookmarks,
   removeReadingProgress,
   saveReadingBookmark,
   saveReadingProgress
@@ -54,22 +55,53 @@ describe('reading progress helpers', () => {
     expect(loadReadingProgress('story-b')?.ratio).toBe(0.25);
   });
 
-  it('saves, loads, clamps, and removes bookmarks for each story id', () => {
-    const saved = saveReadingBookmark('story-a', 0.625, window.localStorage, () => new Date('2026-06-20T12:00:00.000Z'));
-    saveReadingBookmark('story-b', 2, window.localStorage, () => new Date('2026-06-20T12:01:00.000Z'));
+  it('saves, loads, and removes multiple bookmarks for each story id', () => {
+    const first = saveReadingBookmark(
+      'story-a',
+      0.25,
+      window.localStorage,
+      () => new Date('2026-06-20T12:00:00.000Z'),
+      () => 'bookmark-1'
+    );
+    const second = saveReadingBookmark(
+      'story-a',
+      0.625,
+      window.localStorage,
+      () => new Date('2026-06-20T12:01:00.000Z'),
+      () => 'bookmark-2'
+    );
+    const third = saveReadingBookmark(
+      'story-b',
+      2,
+      window.localStorage,
+      () => new Date('2026-06-20T12:02:00.000Z'),
+      () => 'bookmark-3'
+    );
 
-    expect(saved).toEqual({
+    expect(first).toEqual({
+      bookmarkId: 'bookmark-1',
       id: 'story-a',
-      ratio: 0.625,
+      ratio: 0.25,
       createdAt: '2026-06-20T12:00:00.000Z'
     });
-    expect(loadReadingBookmark('story-a')).toEqual(saved);
-    expect(loadReadingBookmark('story-b')?.ratio).toBe(1);
+    expect(second).toEqual({
+      bookmarkId: 'bookmark-2',
+      id: 'story-a',
+      ratio: 0.625,
+      createdAt: '2026-06-20T12:01:00.000Z'
+    });
+    expect(third.ratio).toBe(1);
+    expect(loadReadingBookmarks('story-a')).toEqual([second, first]);
+    expect(loadReadingBookmarks('story-b')).toEqual([third]);
 
-    removeReadingBookmark('story-a');
+    removeReadingBookmark('story-a', 'bookmark-2');
 
-    expect(loadReadingBookmark('story-a')).toBeNull();
-    expect(loadReadingBookmark('story-b')?.ratio).toBe(1);
+    expect(loadReadingBookmarks('story-a')).toEqual([first]);
+
+    removeReadingBookmarks('story-a');
+
+    expect(loadReadingBookmarks('story-a')).toEqual([]);
+    expect(loadReadingBookmarks('story-b')).toEqual([third]);
   });
 
   it('formats progress for display', () => {

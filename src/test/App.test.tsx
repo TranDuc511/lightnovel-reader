@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
@@ -14,6 +14,9 @@ describe('App reading progress', () => {
     });
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 2000 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 0 });
   });
 
   afterEach(() => {
@@ -39,5 +42,49 @@ describe('App reading progress', () => {
     await user.click(screen.getByRole('button', { name: /library/i }));
 
     expect(screen.getAllByText('Progress 46%').length).toBeGreaterThan(0);
+  });
+
+  it('opens bookmark hub and lets user manage multiple bookmarks', async () => {
+    const user = userEvent.setup();
+    const rawText = 'Line one\n\nLine two\n\nLine three';
+
+    render(<App />);
+
+    await user.upload(screen.getByLabelText(/choose file/i), new File([rawText], 'bookmark-me.txt', { type: 'text/plain' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Opened bookmark-me \(text\)\. Saved to library\./)).toBeInTheDocument();
+    });
+
+    window.scrollY = 250;
+    await user.click(screen.getByRole('button', { name: /open bookmark hub/i }));
+
+    const hub = screen.getByRole('dialog', { name: /bookmark hub/i });
+    expect(within(hub).getByText('No bookmarks yet.')).toBeInTheDocument();
+
+    await user.click(within(hub).getByRole('button', { name: /add current spot/i }));
+
+    expect(within(hub).getByRole('button', { name: /jump to bookmark 25%/i })).toBeInTheDocument();
+    expect(within(hub).getByText('1 saved')).toBeInTheDocument();
+
+    window.scrollY = 750;
+    await user.click(within(hub).getByRole('button', { name: /add current spot/i }));
+
+    expect(within(hub).getByRole('button', { name: /jump to bookmark 75%/i })).toBeInTheDocument();
+    expect(within(hub).getByRole('button', { name: /jump to bookmark 25%/i })).toBeInTheDocument();
+    expect(within(hub).getByText('2 saved')).toBeInTheDocument();
+
+    await user.click(within(hub).getByRole('button', { name: /jump to bookmark 25%/i }));
+
+    expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 250, behavior: 'smooth' });
+
+    await user.click(within(hub).getByRole('button', { name: /remove bookmark 75%/i }));
+
+    expect(within(hub).queryByRole('button', { name: /jump to bookmark 75%/i })).not.toBeInTheDocument();
+    expect(within(hub).getByText('1 saved')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /library/i }));
+
+    expect(screen.getByText('Bookmarks 1')).toBeInTheDocument();
   });
 });

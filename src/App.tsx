@@ -14,12 +14,14 @@ import {
   nextTheme
 } from './lib/preferences';
 import {
+  type ReadingBookmark,
   calculateReadingProgress,
   calculateScrollTopForProgress,
   formatReadingProgress,
-  loadReadingBookmark,
+  loadReadingBookmarks,
   loadReadingProgress,
   removeReadingBookmark,
+  removeReadingBookmarks,
   removeReadingProgress,
   saveReadingBookmark,
   saveReadingProgress
@@ -41,9 +43,11 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState('No file opened yet.');
   const [readingProgress, setReadingProgress] = useState(0);
-  const [bookmarkRatio, setBookmarkRatio] = useState<number | null>(null);
+  const [bookmarks, setBookmarks] = useState<ReadingBookmark[]>([]);
+  const [isBookmarkHubOpen, setIsBookmarkHubOpen] = useState(false);
   const resumeProgressRef = useRef<number | null>(null);
   const isRestoringProgressRef = useRef(false);
+  const bookmarkHubRef = useRef<HTMLDivElement | null>(null);
 
   const readerStyle = useMemo(
     () => ({
@@ -113,6 +117,27 @@ function App() {
     };
   }, [activeTab, novel?.id]);
 
+  useEffect(() => {
+    if (!isBookmarkHubOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!bookmarkHubRef.current?.contains(event.target as Node)) {
+        setIsBookmarkHubOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsBookmarkHubOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isBookmarkHubOpen]);
+
   async function openFile(file: File, source: ParsedNovel['source'] = 'local') {
     try {
       setStatus(`Reading ${file.name}...`);
@@ -120,6 +145,8 @@ function App() {
       openParsedNovel(parsed, `Opened ${parsed.title} (${parsed.kind}).`);
     } catch (error) {
       setNovel(null);
+      setBookmarks([]);
+      setIsBookmarkHubOpen(false);
       setStatus(error instanceof Error ? error.message : 'Unable to read this file.');
     }
   }
@@ -138,11 +165,12 @@ function App() {
     const novelWithId = { ...parsed, id: parsed.id ?? createLibraryId(parsed) };
     const savedProgress = loadReadingProgress(novelWithId.id);
     const progressRatio = savedProgress?.ratio ?? 0;
-    const savedBookmark = loadReadingBookmark(novelWithId.id);
+    const savedBookmarks = loadReadingBookmarks(novelWithId.id);
 
     resumeProgressRef.current = progressRatio;
     setReadingProgress(progressRatio);
-    setBookmarkRatio(savedBookmark?.ratio ?? null);
+    setBookmarks(savedBookmarks);
+    setIsBookmarkHubOpen(false);
     setNovel(novelWithId);
     setActiveTab('reader');
 
@@ -157,11 +185,12 @@ function App() {
   function openLibraryItem(item: LibraryItem) {
     const savedProgress = loadReadingProgress(item.id);
     const progressRatio = savedProgress?.ratio ?? 0;
-    const savedBookmark = loadReadingBookmark(item.id);
+    const savedBookmarks = loadReadingBookmarks(item.id);
 
     resumeProgressRef.current = progressRatio;
     setReadingProgress(progressRatio);
-    setBookmarkRatio(savedBookmark?.ratio ?? null);
+    setBookmarks(savedBookmarks);
+    setIsBookmarkHubOpen(false);
     setNovel(item);
     setActiveTab('reader');
     setStatus(`Opened ${item.title} from library.${progressRatio > 0 ? ` Resumed at ${formatReadingProgress(progressRatio)}.` : ''}`);
@@ -169,12 +198,13 @@ function App() {
 
   function removeLibraryItem(id: string) {
     removeReadingProgress(id);
-    removeReadingBookmark(id);
+    removeReadingBookmarks(id);
     setLibrary(removeFromLibrary(id));
     if (novel?.id === id) {
       setNovel(null);
       setReadingProgress(0);
-      setBookmarkRatio(null);
+      setBookmarks([]);
+      setIsBookmarkHubOpen(false);
       resumeProgressRef.current = null;
     }
     setStatus('Removed from library.');
@@ -189,21 +219,31 @@ function App() {
 
     const ratio = captureCurrentProgress();
     saveReadingProgress(novel.id, ratio);
-    saveReadingBookmark(novel.id, ratio);
+    const bookmark = saveReadingBookmark(novel.id, ratio);
+    const nextBookmarks = [bookmark, ...bookmarks].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
     setReadingProgress(ratio);
-    setBookmarkRatio(ratio);
+    setBookmarks(nextBookmarks);
     setStatus(`Bookmarked ${formatReadingProgress(ratio)} in ${novel.title}.`);
   }
 
-  function jumpToBookmark() {
-    if (bookmarkRatio === null) return;
-
+  function jumpToBookmark(bookmark: ReadingBookmark) {
     window.scrollTo({
-      top: calculateScrollTopForProgress(bookmarkRatio, document.documentElement.scrollHeight, window.innerHeight),
+      top: calculateScrollTopForProgress(bookmark.ratio, document.documentElement.scrollHeight, window.innerHeight),
       behavior: 'smooth'
     });
-    setReadingProgress(bookmarkRatio);
-    setStatus(`Jumped to bookmark at ${formatReadingProgress(bookmarkRatio)}.`);
+    setReadingProgress(bookmark.ratio);
+    setStatus(`Jumped to bookmark at ${formatReadingProgress(bookmark.ratio)}.`);
+  }
+
+  function deleteBookmark(bookmark: ReadingBookmark) {
+    if (!novel?.id) return;
+
+    removeReadingBookmark(novel.id, bookmark.bookmarkId);
+    const nextBookmarks = bookmarks.filter((entry) => entry.bookmarkId !== bookmark.bookmarkId);
+
+    setBookmarks(nextBookmarks);
+    setStatus(`Removed bookmark ${formatReadingProgress(bookmark.ratio)}.`);
   }
 
   function updatePreference(key: NumericPreference, delta: number) {
@@ -258,14 +298,63 @@ function App() {
             <span className="progress-pill" aria-label="Reading progress">
               Progress {formatReadingProgress(readingProgress)}
             </span>
-            {bookmarkRatio !== null ? (
-              <button type="button" className="bookmark-button" onClick={jumpToBookmark}>
-                <Bookmark size={16} /> Bookmark {formatReadingProgress(bookmarkRatio)}
+            <div className="bookmark-hub" ref={bookmarkHubRef}>
+              <button
+                type="button"
+                className={`bookmark-hub-toggle ${isBookmarkHubOpen ? 'active' : ''}`}
+                aria-label="Open bookmark hub"
+                aria-haspopup="dialog"
+                aria-expanded={isBookmarkHubOpen}
+                onClick={() => setIsBookmarkHubOpen((current) => !current)}
+              >
+                <Bookmark size={18} />
+                {bookmarks.length > 0 ? <span className="bookmark-count">{bookmarks.length}</span> : null}
               </button>
-            ) : null}
-            <button type="button" className="bookmark-button" onClick={addBookmark}>
-              <Bookmark size={16} /> Add bookmark
-            </button>
+              {isBookmarkHubOpen ? (
+                <section className="bookmark-hub-panel" role="dialog" aria-label="Bookmark hub">
+                  <header className="bookmark-hub-header">
+                    <div>
+                      <strong>Bookmark hub</strong>
+                      <small>{`${bookmarks.length} saved`}</small>
+                    </div>
+                    <button type="button" className="bookmark-add-button" onClick={addBookmark}>
+                      Add current spot
+                    </button>
+                  </header>
+
+                  {bookmarks.length === 0 ? (
+                    <p className="bookmark-empty">No bookmarks yet.</p>
+                  ) : (
+                    <ul className="bookmark-list">
+                      {bookmarks.map((bookmark) => {
+                        const progressLabel = formatReadingProgress(bookmark.ratio);
+                        return (
+                          <li className="bookmark-row" key={bookmark.bookmarkId}>
+                            <button
+                              type="button"
+                              className="bookmark-jump-button"
+                              aria-label={`Jump to bookmark ${progressLabel}`}
+                              onClick={() => jumpToBookmark(bookmark)}
+                            >
+                              {`Jump to ${progressLabel}`}
+                            </button>
+                            <small>{new Date(bookmark.createdAt).toLocaleString()}</small>
+                            <button
+                              type="button"
+                              className="bookmark-remove-button"
+                              aria-label={`Remove bookmark ${progressLabel}`}
+                              onClick={() => deleteBookmark(bookmark)}
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </section>
@@ -304,7 +393,7 @@ function App() {
             <div className="library-grid">
               {library.map((item) => {
                 const itemProgress = loadReadingProgress(item.id)?.ratio ?? 0;
-                const itemBookmark = loadReadingBookmark(item.id)?.ratio ?? null;
+                const itemBookmarks = loadReadingBookmarks(item.id);
 
                 return (
                   <article className="library-card" key={item.id}>
@@ -315,7 +404,7 @@ function App() {
                       </span>
                       <small>Saved {new Date(item.savedAt).toLocaleString()}</small>
                       <small>Progress {formatReadingProgress(itemProgress)}</small>
-                      {itemBookmark !== null ? <small>Bookmark {formatReadingProgress(itemBookmark)}</small> : null}
+                      {itemBookmarks.length > 0 ? <small>{`Bookmarks ${itemBookmarks.length}`}</small> : null}
                     </div>
                     <div className="library-actions">
                       <button type="button" onClick={() => openLibraryItem(item)}>
