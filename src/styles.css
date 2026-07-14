@@ -224,6 +224,10 @@ button.danger {
   position: relative;
 }
 
+.highlight-hub {
+  position: relative;
+}
+
 .progress-pill {
   border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   border-radius: 999px;
@@ -235,6 +239,30 @@ button.danger {
 
 .theme-dark .progress-pill {
   background: color-mix(in srgb, white 8%, transparent);
+}
+
+.selection-action,
+.highlight-hub-toggle,
+.highlight-jump-button,
+.highlight-remove-button {
+  background: color-mix(in srgb, white 26%, transparent);
+}
+
+.selection-action {
+  padding: 0.4rem 0.9rem;
+  font-weight: 700;
+  background: color-mix(in srgb, #f6d365 62%, transparent);
+}
+
+.reader-selection-toolbar {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.reader-selection-toolbar .selection-action {
+  pointer-events: auto;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
 }
 
 .bookmark-hub-toggle,
@@ -274,6 +302,42 @@ button.danger {
   color: #fff7f2;
 }
 
+.highlight-hub-toggle {
+  position: relative;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.highlight-hub-toggle.active {
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.highlight-hub-icon {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.highlight-count {
+  position: absolute;
+  top: -0.2rem;
+  right: -0.2rem;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  font-weight: 700;
+  background: #c27c00;
+  color: #fff8e1;
+}
+
 .bookmark-hub-panel {
   position: absolute;
   top: calc(100% + 0.75rem);
@@ -292,6 +356,24 @@ button.danger {
   box-shadow: 0 20px 45px rgb(0 0 0 / 42%);
 }
 
+.highlight-hub-panel {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  z-index: 10;
+  width: min(26rem, calc(100vw - 3rem));
+  padding: 0.95rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, white 88%, transparent);
+  box-shadow: 0 20px 45px rgb(0 0 0 / 18%);
+}
+
+.theme-dark .highlight-hub-panel {
+  background: color-mix(in srgb, #111722 92%, transparent);
+  box-shadow: 0 20px 45px rgb(0 0 0 / 42%);
+}
+
 .bookmark-hub-header {
   display: flex;
   justify-content: space-between;
@@ -304,9 +386,27 @@ button.danger {
   display: block;
 }
 
+.highlight-hub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.highlight-hub-header strong,
+.highlight-hub-header small {
+  display: block;
+}
+
 .bookmark-hub-header small,
 .bookmark-row small,
 .bookmark-empty {
+  opacity: 0.72;
+}
+
+.highlight-hub-header small,
+.highlight-row small,
+.highlight-empty {
   opacity: 0.72;
 }
 
@@ -319,7 +419,19 @@ button.danger {
   margin: 0.9rem 0 0;
 }
 
+.highlight-empty {
+  margin: 0.9rem 0 0;
+}
+
 .bookmark-list {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.highlight-list {
   list-style: none;
   margin: 0.9rem 0 0;
   padding: 0;
@@ -341,6 +453,18 @@ button.danger {
   background: color-mix(in srgb, white 6%, transparent);
 }
 
+.highlight-row {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, white 34%, transparent);
+}
+
+.theme-dark .highlight-row {
+  background: color-mix(in srgb, white 6%, transparent);
+}
+
 .bookmark-row small {
   grid-column: 1 / 2;
 }
@@ -349,6 +473,31 @@ button.danger {
 .bookmark-remove-button {
   justify-content: center;
   padding: 0.35rem 0.75rem;
+}
+
+.highlight-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.highlight-jump-button,
+.highlight-remove-button {
+  justify-content: center;
+  padding: 0.35rem 0.75rem;
+}
+
+.highlight-jump-button {
+  font-weight: 700;
+}
+
+.highlight-remove-button {
+  color: #9b1c1c;
+}
+
+.highlight-quote {
+  display: block;
+  line-height: 1.5;
 }
 
 .bookmark-jump-button {
@@ -369,6 +518,17 @@ button.danger {
   background: color-mix(in srgb, white 8%, transparent);
 }
 
+.theme-dark .selection-action,
+.theme-dark .highlight-hub-toggle,
+.theme-dark .highlight-jump-button,
+.theme-dark .highlight-remove-button {
+  background: color-mix(in srgb, white 8%, transparent);
+}
+
+.theme-dark .selection-action {
+  background: color-mix(in srgb, #f6d365 24%, transparent);
+}
+
 .tabs {
   max-width: 1180px;
   margin: 0 auto 1rem;
@@ -387,6 +547,7 @@ button.danger {
 }
 
 .reader {
+  position: relative;
   margin: 0 auto;
   padding: clamp(1.2rem, 4vw, 3rem);
   min-height: 70vh;
@@ -408,6 +569,17 @@ button.danger {
 
 .reader p {
   margin: 0 0 1.15em;
+}
+
+.reader-highlight {
+  padding: 0.05em 0.15em;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, #f6d365 82%, white 18%);
+  color: inherit;
+}
+
+.theme-dark .reader-highlight {
+  background: color-mix(in srgb, #f6d365 48%, transparent);
 }
 
 .reader blockquote {

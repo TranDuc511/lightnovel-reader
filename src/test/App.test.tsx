@@ -1,9 +1,23 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { createLibraryId } from '../lib/library';
 import { saveReadingProgress } from '../lib/readingProgress';
+
+function selectText(node: HTMLElement, startOffset: number, endOffset: number) {
+  const textNode = node.firstChild;
+  if (!textNode) throw new Error('Missing text node to select.');
+
+  const selection = window.getSelection();
+  if (!selection) throw new Error('Missing window selection.');
+
+  const range = document.createRange();
+  range.setStart(textNode, startOffset);
+  range.setEnd(textNode, endOffset);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
 
 describe('App reading progress', () => {
   beforeEach(() => {
@@ -86,5 +100,41 @@ describe('App reading progress', () => {
     await user.click(screen.getByRole('button', { name: /library/i }));
 
     expect(screen.getByText('Bookmarks 1')).toBeInTheDocument();
+  });
+
+  it('saves selected text as highlight and shows it in hub and library', async () => {
+    const user = userEvent.setup();
+    const rawText = 'Alpha beta gamma delta epsilon';
+
+    render(<App />);
+
+    await user.upload(screen.getByLabelText(/choose file/i), new File([rawText], 'highlight-me.txt', { type: 'text/plain' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Opened highlight-me \(text\)\. Saved to library\./)).toBeInTheDocument();
+    });
+
+    const paragraph = screen.getByText('Alpha beta gamma delta epsilon');
+    selectText(paragraph, 6, 16);
+    fireEvent.mouseUp(paragraph);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /highlight selection/i })).toBeInTheDocument();
+    });
+
+    const inlineAction = screen.getByRole('button', { name: /highlight selection/i });
+    expect(inlineAction.closest('.reader-selection-toolbar')).not.toBeNull();
+
+    await user.click(inlineAction);
+
+    expect(document.querySelector('mark.reader-highlight')).not.toBeNull();
+
+    const hub = await screen.findByRole('dialog', { name: /highlight hub/i });
+    expect(within(hub).getByText('1 saved')).toBeInTheDocument();
+    expect(within(hub).getByText('beta gamma')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /library/i }));
+
+    expect(screen.getByText('Highlights 1')).toBeInTheDocument();
   });
 });

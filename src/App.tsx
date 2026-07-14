@@ -3,6 +3,16 @@ import { BookOpen, Bookmark, FileText, Library, Trash2 } from 'lucide-react';
 import './styles.css';
 import { ReaderControls } from './components/ReaderControls';
 import { type ParsedNovel, parseNovelFile } from './lib/fileReaders';
+import {
+  createHighlightAnchorFromSelection,
+  loadHighlights,
+  removeHighlight,
+  removeHighlights,
+  renderHighlightsOnHtml,
+  saveHighlight,
+  type HighlightAnchor,
+  type TextHighlight
+} from './lib/highlights';
 import { importGoogleDriveFile } from './lib/googleDrive';
 import { type LibraryItem, createLibraryId, loadLibrary, removeFromLibrary, saveToLibrary } from './lib/library';
 import {
@@ -10,8 +20,9 @@ import {
   type ReaderPreferences,
   type ThemeName,
   clampPreference,
-  defaultPreferences,
-  nextTheme
+  loadPreferences,
+  nextTheme,
+  savePreferences
 } from './lib/preferences';
 import {
   type ReadingBookmark,
@@ -28,6 +39,7 @@ import {
 } from './lib/readingProgress';
 
 type ActiveTab = 'reader' | 'library';
+type SelectionToolbarPosition = { top: number; left: number };
 
 const sampleHtml = `
   <h1>Drop a light novel here</h1>
@@ -39,15 +51,21 @@ function App() {
   const [novel, setNovel] = useState<ParsedNovel | null>(null);
   const [library, setLibrary] = useState<LibraryItem[]>(() => loadLibrary());
   const [activeTab, setActiveTab] = useState<ActiveTab>('reader');
-  const [preferences, setPreferences] = useState<ReaderPreferences>(defaultPreferences);
+  const [preferences, setPreferences] = useState<ReaderPreferences>(loadPreferences);
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState('No file opened yet.');
   const [readingProgress, setReadingProgress] = useState(0);
   const [bookmarks, setBookmarks] = useState<ReadingBookmark[]>([]);
+  const [highlights, setHighlights] = useState<TextHighlight[]>([]);
   const [isBookmarkHubOpen, setIsBookmarkHubOpen] = useState(false);
+  const [isHighlightHubOpen, setIsHighlightHubOpen] = useState(false);
+  const [pendingHighlightAnchor, setPendingHighlightAnchor] = useState<HighlightAnchor | null>(null);
+  const [selectionToolbarPosition, setSelectionToolbarPosition] = useState<SelectionToolbarPosition | null>(null);
   const resumeProgressRef = useRef<number | null>(null);
   const isRestoringProgressRef = useRef(false);
   const bookmarkHubRef = useRef<HTMLDivElement | null>(null);
+  const highlightHubRef = useRef<HTMLDivElement | null>(null);
+  const readerRef = useRef<HTMLElement | null>(null);
 
   const readerStyle = useMemo(
     () => ({
@@ -57,6 +75,15 @@ function App() {
     }),
     [preferences]
   );
+
+  const displayHtml = useMemo(() => {
+    if (!novel?.html) return sampleHtml;
+    return renderHighlightsOnHtml(novel.html, highlights);
+  }, [highlights, novel?.html]);
+
+  useEffect(() => {
+    savePreferences(preferences);
+  }, [preferences]);
 
   useEffect(() => {
     if (!novel?.id || activeTab !== 'reader') return;
@@ -118,15 +145,23 @@ function App() {
   }, [activeTab, novel?.id]);
 
   useEffect(() => {
-    if (!isBookmarkHubOpen) return;
+    if (!isBookmarkHubOpen && !isHighlightHubOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (!bookmarkHubRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const insideBookmarkHub = bookmarkHubRef.current?.contains(target) ?? false;
+      const insideHighlightHub = highlightHubRef.current?.contains(target) ?? false;
+
+      if (!insideBookmarkHub && !insideHighlightHub) {
         setIsBookmarkHubOpen(false);
+        setIsHighlightHubOpen(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsBookmarkHubOpen(false);
+      if (event.key === 'Escape') {
+        setIsBookmarkHubOpen(false);
+        setIsHighlightHubOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -136,7 +171,15 @@ function App() {
       document.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isBookmarkHubOpen]);
+  }, [isBookmarkHubOpen, isHighlightHubOpen]);
+
+  useEffect(() => {
+    if (activeTab !== 'reader') {
+      setPendingHighlightAnchor(null);
+      setSelectionToolbarPosition(null);
+      setIsHighlightHubOpen(false);
+    }
+  }, [activeTab, novel?.id]);
 
   async function openFile(file: File, source: ParsedNovel['source'] = 'local') {
     try {
@@ -146,7 +189,11 @@ function App() {
     } catch (error) {
       setNovel(null);
       setBookmarks([]);
+      setHighlights([]);
+      setPendingHighlightAnchor(null);
+      setSelectionToolbarPosition(null);
       setIsBookmarkHubOpen(false);
+      setIsHighlightHubOpen(false);
       setStatus(error instanceof Error ? error.message : 'Unable to read this file.');
     }
   }
@@ -166,11 +213,16 @@ function App() {
     const savedProgress = loadReadingProgress(novelWithId.id);
     const progressRatio = savedProgress?.ratio ?? 0;
     const savedBookmarks = loadReadingBookmarks(novelWithId.id);
+    const savedHighlights = loadHighlights(novelWithId.id);
 
     resumeProgressRef.current = progressRatio;
     setReadingProgress(progressRatio);
     setBookmarks(savedBookmarks);
+    setHighlights(savedHighlights);
+    setPendingHighlightAnchor(null);
+    setSelectionToolbarPosition(null);
     setIsBookmarkHubOpen(false);
+    setIsHighlightHubOpen(false);
     setNovel(novelWithId);
     setActiveTab('reader');
 
@@ -186,11 +238,16 @@ function App() {
     const savedProgress = loadReadingProgress(item.id);
     const progressRatio = savedProgress?.ratio ?? 0;
     const savedBookmarks = loadReadingBookmarks(item.id);
+    const savedHighlights = loadHighlights(item.id);
 
     resumeProgressRef.current = progressRatio;
     setReadingProgress(progressRatio);
     setBookmarks(savedBookmarks);
+    setHighlights(savedHighlights);
+    setPendingHighlightAnchor(null);
+    setSelectionToolbarPosition(null);
     setIsBookmarkHubOpen(false);
+    setIsHighlightHubOpen(false);
     setNovel(item);
     setActiveTab('reader');
     setStatus(`Opened ${item.title} from library.${progressRatio > 0 ? ` Resumed at ${formatReadingProgress(progressRatio)}.` : ''}`);
@@ -199,12 +256,17 @@ function App() {
   function removeLibraryItem(id: string) {
     removeReadingProgress(id);
     removeReadingBookmarks(id);
+    removeHighlights(id);
     setLibrary(removeFromLibrary(id));
     if (novel?.id === id) {
       setNovel(null);
       setReadingProgress(0);
       setBookmarks([]);
+      setHighlights([]);
+      setPendingHighlightAnchor(null);
+      setSelectionToolbarPosition(null);
       setIsBookmarkHubOpen(false);
+      setIsHighlightHubOpen(false);
       resumeProgressRef.current = null;
     }
     setStatus('Removed from library.');
@@ -244,6 +306,74 @@ function App() {
 
     setBookmarks(nextBookmarks);
     setStatus(`Removed bookmark ${formatReadingProgress(bookmark.ratio)}.`);
+  }
+
+  function measureSelectionToolbarPosition(
+    readerElement: HTMLElement,
+    selection: Selection | null
+  ): SelectionToolbarPosition | null {
+    if (!selection || selection.rangeCount === 0) return null;
+
+    const range = selection.getRangeAt(0);
+    const readerRect = readerElement.getBoundingClientRect();
+    const fallbackRect =
+      range.startContainer.parentElement?.getBoundingClientRect() ??
+      ({ top: readerRect.top + 48, left: readerRect.left + 48, width: 0 } as DOMRect);
+    const selectionRect =
+      typeof range.getBoundingClientRect === 'function' ? range.getBoundingClientRect() : fallbackRect;
+    const readerWidth = readerElement.clientWidth || readerRect.width || 0;
+    const desiredLeft = selectionRect.left - readerRect.left + selectionRect.width / 2 - 76;
+    const maxLeft = Math.max(12, readerWidth - 152);
+
+    return {
+      top: Math.max(12, selectionRect.top - readerRect.top - 52),
+      left: Math.min(Math.max(12, desiredLeft), maxLeft)
+    };
+  }
+
+  function refreshPendingHighlight() {
+    if (!readerRef.current || !novel?.id || activeTab !== 'reader') {
+      setPendingHighlightAnchor(null);
+      setSelectionToolbarPosition(null);
+      return;
+    }
+
+    const selection = window.getSelection();
+    const anchor = createHighlightAnchorFromSelection(readerRef.current, selection);
+    setPendingHighlightAnchor(anchor);
+    setSelectionToolbarPosition(anchor ? measureSelectionToolbarPosition(readerRef.current, selection) : null);
+  }
+
+  function addHighlight() {
+    if (!novel?.id || !pendingHighlightAnchor) return;
+
+    const highlight = saveHighlight(novel.id, pendingHighlightAnchor);
+    setHighlights(loadHighlights(novel.id));
+    setPendingHighlightAnchor(null);
+    setSelectionToolbarPosition(null);
+    setIsHighlightHubOpen(true);
+    window.getSelection()?.removeAllRanges();
+    setStatus(`Highlighted “${highlight.quote}”.`);
+  }
+
+  function jumpToHighlight(highlight: TextHighlight) {
+    const element = readerRef.current?.querySelector(`[data-highlight-id="${highlight.highlightId}"]`);
+    if (!(element instanceof HTMLElement)) {
+      setStatus('Could not find that highlight in current chapter.');
+      return;
+    }
+
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setStatus(`Jumped to highlight “${highlight.quote}”.`);
+  }
+
+  function deleteHighlight(highlight: TextHighlight) {
+    if (!novel?.id) return;
+
+    removeHighlight(novel.id, highlight.highlightId);
+    const nextHighlights = loadHighlights(novel.id);
+    setHighlights(nextHighlights);
+    setStatus(`Removed highlight “${highlight.quote}”.`);
   }
 
   function updatePreference(key: NumericPreference, delta: number) {
@@ -305,7 +435,10 @@ function App() {
                 aria-label="Open bookmark hub"
                 aria-haspopup="dialog"
                 aria-expanded={isBookmarkHubOpen}
-                onClick={() => setIsBookmarkHubOpen((current) => !current)}
+                onClick={() => {
+                  setIsBookmarkHubOpen((current) => !current);
+                  setIsHighlightHubOpen(false);
+                }}
               >
                 <Bookmark size={18} />
                 {bookmarks.length > 0 ? <span className="bookmark-count">{bookmarks.length}</span> : null}
@@ -355,6 +488,63 @@ function App() {
                 </section>
               ) : null}
             </div>
+            <div className="highlight-hub" ref={highlightHubRef}>
+              <button
+                type="button"
+                className={`highlight-hub-toggle ${isHighlightHubOpen ? 'active' : ''}`}
+                aria-label="Open highlight hub"
+                aria-haspopup="dialog"
+                aria-expanded={isHighlightHubOpen}
+                onClick={() => {
+                  setIsHighlightHubOpen((current) => !current);
+                  setIsBookmarkHubOpen(false);
+                }}
+              >
+                <span className="highlight-hub-icon" aria-hidden="true">H</span>
+                {highlights.length > 0 ? <span className="highlight-count">{highlights.length}</span> : null}
+              </button>
+              {isHighlightHubOpen ? (
+                <section className="highlight-hub-panel" role="dialog" aria-label="Highlight hub">
+                  <header className="highlight-hub-header">
+                    <div>
+                      <strong>Highlight hub</strong>
+                      <small>{`${highlights.length} saved`}</small>
+                    </div>
+                  </header>
+
+                  {highlights.length === 0 ? (
+                    <p className="highlight-empty">No highlights yet.</p>
+                  ) : (
+                    <ul className="highlight-list">
+                      {highlights.map((highlight) => (
+                        <li className="highlight-row" key={highlight.highlightId}>
+                          <strong className="highlight-quote">{highlight.quote}</strong>
+                          <small>{new Date(highlight.createdAt).toLocaleString()}</small>
+                          <div className="highlight-row-actions">
+                            <button
+                              type="button"
+                              className="highlight-jump-button"
+                              aria-label={`Jump to highlight ${highlight.quote}`}
+                              onClick={() => jumpToHighlight(highlight)}
+                            >
+                              Jump
+                            </button>
+                            <button
+                              type="button"
+                              className="highlight-remove-button"
+                              aria-label={`Remove highlight ${highlight.quote}`}
+                              onClick={() => deleteHighlight(highlight)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </section>
@@ -377,8 +567,34 @@ function App() {
       </nav>
 
       {activeTab === 'reader' ? (
-        <article className="reader" style={readerStyle}>
-          <div dangerouslySetInnerHTML={{ __html: novel?.html ?? sampleHtml }} />
+        <article
+          ref={readerRef}
+          className="reader"
+          style={readerStyle}
+          onMouseUp={(event) => {
+            if ((event.target as HTMLElement).closest('.reader-selection-toolbar')) return;
+            refreshPendingHighlight();
+          }}
+          onKeyUp={refreshPendingHighlight}
+        >
+          {pendingHighlightAnchor && selectionToolbarPosition ? (
+            <div
+              className="reader-selection-toolbar"
+              style={{ top: `${selectionToolbarPosition.top}px`, left: `${selectionToolbarPosition.left}px` }}
+            >
+              <button
+                type="button"
+                className="selection-action"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                }}
+                onClick={addHighlight}
+              >
+                Highlight selection
+              </button>
+            </div>
+          ) : null}
+          <div dangerouslySetInnerHTML={{ __html: displayHtml }} />
         </article>
       ) : (
         <section className="library-panel" aria-label="Saved story library">
@@ -394,6 +610,7 @@ function App() {
               {library.map((item) => {
                 const itemProgress = loadReadingProgress(item.id)?.ratio ?? 0;
                 const itemBookmarks = loadReadingBookmarks(item.id);
+                const itemHighlights = loadHighlights(item.id);
 
                 return (
                   <article className="library-card" key={item.id}>
@@ -405,6 +622,7 @@ function App() {
                       <small>Saved {new Date(item.savedAt).toLocaleString()}</small>
                       <small>Progress {formatReadingProgress(itemProgress)}</small>
                       {itemBookmarks.length > 0 ? <small>{`Bookmarks ${itemBookmarks.length}`}</small> : null}
+                      {itemHighlights.length > 0 ? <small>{`Highlights ${itemHighlights.length}`}</small> : null}
                     </div>
                     <div className="library-actions">
                       <button type="button" onClick={() => openLibraryItem(item)}>
