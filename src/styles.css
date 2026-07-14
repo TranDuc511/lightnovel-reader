@@ -258,6 +258,8 @@ button.danger {
   position: absolute;
   z-index: 4;
   pointer-events: none;
+  transform-origin: center bottom;
+  animation: selection-toolbar-enter 140ms ease-out both;
 }
 
 .reader-selection-toolbar .selection-action {
@@ -349,6 +351,8 @@ button.danger {
   border-radius: 1rem;
   background: color-mix(in srgb, white 88%, transparent);
   box-shadow: 0 20px 45px rgb(0 0 0 / 18%);
+  transform-origin: top right;
+  animation: popover-enter 160ms ease-out both;
 }
 
 .theme-dark .bookmark-hub-panel {
@@ -367,6 +371,32 @@ button.danger {
   border-radius: 1rem;
   background: color-mix(in srgb, white 88%, transparent);
   box-shadow: 0 20px 45px rgb(0 0 0 / 18%);
+  transform-origin: top right;
+  animation: popover-enter 160ms ease-out both;
+}
+
+@keyframes selection-toolbar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.3rem) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes popover-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .theme-dark .highlight-hub-panel {
@@ -697,5 +727,13 @@ button.danger {
   .drive-import,
   .drive-import input {
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-selection-toolbar,
+  .bookmark-hub-panel,
+  .highlight-hub-panel {
+    animation: none;
   }
 }
