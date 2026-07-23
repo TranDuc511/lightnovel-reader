@@ -58,6 +58,24 @@ describe('App reading progress', () => {
     expect(screen.getAllByText('Progress 46%').length).toBeGreaterThan(0);
   });
 
+  it('lets the reader hide and restore images', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    const reader = document.querySelector('.reader');
+    expect(reader).not.toHaveClass('images-hidden');
+
+    await user.click(screen.getByRole('button', { name: /hide images/i }));
+
+    expect(reader).toHaveClass('images-hidden');
+    expect(screen.getByRole('button', { name: /show images/i })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: /show images/i }));
+
+    expect(reader).not.toHaveClass('images-hidden');
+  });
+
   it('opens bookmark hub and lets user manage multiple bookmarks', async () => {
     const user = userEvent.setup();
     const rawText = 'Line one\n\nLine two\n\nLine three';

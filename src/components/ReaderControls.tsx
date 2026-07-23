@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Cloud, Minus, Moon, Plus, Upload } from 'lucide-react';
+import { Cloud, Eye, EyeOff, Minus, Moon, Plus, Upload } from 'lucide-react';
 import type { NumericPreference, ReaderPreferences, ThemeName } from '../lib/preferences';
 
 export type ReaderControlsProps = {
   preferences: ReaderPreferences;
   onThemeChange: (theme: ThemeName) => void;
+  onImageVisibilityChange: () => void;
   onPreferenceChange: (key: NumericPreference, delta: number) => void;
   onFileSelect: (file: File) => void;
   onDriveImport: (url: string) => void;
@@ -13,6 +14,7 @@ export type ReaderControlsProps = {
 export function ReaderControls({
   preferences,
   onThemeChange,
+  onImageVisibilityChange,
   onPreferenceChange,
   onFileSelect,
   onDriveImport
@@ -55,6 +57,16 @@ export function ReaderControls({
 
       <button type="button" onClick={() => onThemeChange(preferences.theme)}>
         <Moon size={18} /> Switch theme
+      </button>
+
+      <button
+        type="button"
+        className={!preferences.showImages ? 'active' : ''}
+        aria-pressed={!preferences.showImages}
+        onClick={onImageVisibilityChange}
+      >
+        {preferences.showImages ? <EyeOff size={18} /> : <Eye size={18} />}
+        {preferences.showImages ? 'Hide images' : 'Show images'}
       </button>
 
       <ControlStepper

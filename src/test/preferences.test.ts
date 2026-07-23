@@ -20,9 +20,21 @@ describe('reader preferences', () => {
   });
 
   it('saves and restores preferences', () => {
-    const preferences = savePreferences({ theme: 'dark', fontSize: 24, lineHeight: 1.9, contentWidth: 80 });
+    const preferences = savePreferences({
+      theme: 'dark',
+      fontSize: 24,
+      lineHeight: 1.9,
+      contentWidth: 80,
+      showImages: false
+    });
 
-    expect(preferences).toEqual({ theme: 'dark', fontSize: 24, lineHeight: 1.9, contentWidth: 80 });
+    expect(preferences).toEqual({
+      theme: 'dark',
+      fontSize: 24,
+      lineHeight: 1.9,
+      contentWidth: 80,
+      showImages: false
+    });
     expect(loadPreferences()).toEqual(preferences);
   });
 
@@ -39,5 +51,14 @@ describe('reader preferences', () => {
     );
 
     expect(loadPreferences()).toEqual({ ...defaultPreferences, fontSize: 28, contentWidth: 52 });
+  });
+
+  it('defaults old saved preferences to showing images', () => {
+    window.localStorage.setItem(
+      'lightnovel-reader.preferences.v1',
+      JSON.stringify({ theme: 'light', fontSize: 18, lineHeight: 1.7, contentWidth: 68 })
+    );
+
+    expect(loadPreferences().showImages).toBe(true);
   });
 });

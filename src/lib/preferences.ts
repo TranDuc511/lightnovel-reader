@@ -5,13 +5,15 @@ export type ReaderPreferences = {
   fontSize: number;
   lineHeight: number;
   contentWidth: number;
+  showImages: boolean;
 };
 
 export const defaultPreferences: ReaderPreferences = {
   theme: 'sepia',
   fontSize: 19,
   lineHeight: 1.75,
-  contentWidth: 72
+  contentWidth: 72,
+  showImages: true
 };
 
 const READER_PREFERENCES_STORAGE_KEY = 'lightnovel-reader.preferences.v1';
@@ -60,7 +62,8 @@ function normalizePreferences(value: unknown): ReaderPreferences {
     theme: isThemeName(preferences.theme) ? preferences.theme : defaultPreferences.theme,
     fontSize: normalizeNumericPreference('fontSize', preferences.fontSize),
     lineHeight: normalizeNumericPreference('lineHeight', preferences.lineHeight),
-    contentWidth: normalizeNumericPreference('contentWidth', preferences.contentWidth)
+    contentWidth: normalizeNumericPreference('contentWidth', preferences.contentWidth),
+    showImages: typeof preferences.showImages === 'boolean' ? preferences.showImages : defaultPreferences.showImages
   };
 }
 

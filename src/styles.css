@@ -652,6 +652,13 @@ button.danger {
   opacity: 0.72;
 }
 
+.reader.images-hidden img,
+.reader.images-hidden svg,
+.reader.images-hidden picture,
+.reader.images-hidden figure {
+  display: none;
+}
+
 .library-panel {
   max-width: 1180px;
   margin: 0 auto;

@@ -413,6 +413,9 @@ function App() {
         <ReaderControls
           preferences={preferences}
           onThemeChange={cycleTheme}
+          onImageVisibilityChange={() => {
+            setPreferences((current) => ({ ...current, showImages: !current.showImages }));
+          }}
           onPreferenceChange={updatePreference}
           onFileSelect={(file) => void openFile(file)}
           onDriveImport={(url) => void importFromDrive(url)}
@@ -569,7 +572,7 @@ function App() {
       {activeTab === 'reader' ? (
         <article
           ref={readerRef}
-          className="reader"
+          className={`reader ${preferences.showImages ? '' : 'images-hidden'}`}
           style={readerStyle}
           onMouseUp={(event) => {
             if ((event.target as HTMLElement).closest('.reader-selection-toolbar')) return;
