@@ -228,6 +228,10 @@ button.danger {
   position: relative;
 }
 
+.table-of-contents-hub {
+  position: relative;
+}
+
 .progress-pill {
   border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   border-radius: 999px;
@@ -244,7 +248,9 @@ button.danger {
 .selection-action,
 .highlight-hub-toggle,
 .highlight-jump-button,
-.highlight-remove-button {
+.highlight-remove-button,
+.table-of-contents-toggle,
+.table-of-contents-list button {
   background: color-mix(in srgb, white 26%, transparent);
 }
 
@@ -317,6 +323,18 @@ button.danger {
   box-shadow: inset 0 0 0 999px color-mix(in srgb, currentColor 12%, transparent);
 }
 
+.table-of-contents-toggle {
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.table-of-contents-toggle.active {
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, currentColor 12%, transparent);
+}
+
 .highlight-hub-icon {
   font-size: 0.95rem;
   font-weight: 800;
@@ -375,6 +393,23 @@ button.danger {
   animation: popover-enter 160ms ease-out both;
 }
 
+.table-of-contents-panel {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  z-index: 10;
+  width: min(28rem, calc(100vw - 3rem));
+  max-height: min(32rem, calc(100vh - 9rem));
+  overflow-y: auto;
+  padding: 0.95rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, white 88%, transparent);
+  box-shadow: 0 20px 45px rgb(0 0 0 / 18%);
+  transform-origin: top right;
+  animation: popover-enter 160ms ease-out both;
+}
+
 @keyframes selection-toolbar-enter {
   from {
     opacity: 0;
@@ -404,6 +439,11 @@ button.danger {
   box-shadow: 0 20px 45px rgb(0 0 0 / 42%);
 }
 
+.theme-dark .table-of-contents-panel {
+  background: color-mix(in srgb, #111722 92%, transparent);
+  box-shadow: 0 20px 45px rgb(0 0 0 / 42%);
+}
+
 .bookmark-hub-header {
   display: flex;
   justify-content: space-between;
@@ -428,6 +468,11 @@ button.danger {
   display: block;
 }
 
+.table-of-contents-header strong,
+.table-of-contents-header small {
+  display: block;
+}
+
 .bookmark-hub-header small,
 .bookmark-row small,
 .bookmark-empty {
@@ -437,6 +482,10 @@ button.danger {
 .highlight-hub-header small,
 .highlight-row small,
 .highlight-empty {
+  opacity: 0.72;
+}
+
+.table-of-contents-header small {
   opacity: 0.72;
 }
 
@@ -467,6 +516,22 @@ button.danger {
   padding: 0;
   display: grid;
   gap: 0.65rem;
+}
+
+.table-of-contents-list {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.table-of-contents-list button {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  line-height: 1.35;
+  padding: 0.45rem 0.55rem;
 }
 
 .bookmark-row {
@@ -551,7 +616,9 @@ button.danger {
 .theme-dark .selection-action,
 .theme-dark .highlight-hub-toggle,
 .theme-dark .highlight-jump-button,
-.theme-dark .highlight-remove-button {
+.theme-dark .highlight-remove-button,
+.theme-dark .table-of-contents-toggle,
+.theme-dark .table-of-contents-list button {
   background: color-mix(in srgb, white 8%, transparent);
 }
 
@@ -740,7 +807,8 @@ button.danger {
 @media (prefers-reduced-motion: reduce) {
   .reader-selection-toolbar,
   .bookmark-hub-panel,
-  .highlight-hub-panel {
+  .highlight-hub-panel,
+  .table-of-contents-panel {
     animation: none;
   }
 }

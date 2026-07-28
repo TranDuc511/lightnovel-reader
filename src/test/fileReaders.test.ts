@@ -26,6 +26,15 @@ describe('file reader helpers', () => {
     expect(html).toContain('<p>New paragraph</p>');
   });
 
+  it('recognizes plain-text chapter headings for the table of contents', async () => {
+    const parsed = await parseNovelFile(
+      new File(['Chapter 1\n\nBeginning\n\nChapter 2\n\nContinuation'], 'chapters.txt', { type: 'text/plain' })
+    );
+
+    expect(parsed.html).toContain('<h2 data-toc-id="toc-entry-1">Chapter 1</h2>');
+    expect(parsed.tableOfContents?.map((entry) => entry.label)).toEqual(['Chapter 1', 'Chapter 2']);
+  });
+
   it('parses EPUB spine content and preserves illustration images as durable data URLs', async () => {
     const epubFile = await createIllustratedEpubFile();
     const parsed = await parseNovelFile(epubFile);
@@ -36,6 +45,8 @@ describe('file reader helpers', () => {
     expect(parsed.html).toContain('<h1>Chapter One</h1>');
     expect(parsed.html).toContain('src="data:image/png;base64,iVBORw=="');
     expect(parsed.html).toContain('alt="Hero illustration"');
+    expect(parsed.tableOfContents?.map((entry) => entry.label)).toEqual(['Chapter One']);
+    expect(parsed.html).toContain('data-toc-id="toc-entry-1"');
   });
 });
 

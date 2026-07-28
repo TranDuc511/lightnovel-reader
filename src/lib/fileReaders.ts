@@ -2,6 +2,7 @@ import DOMPurify from 'dompurify';
 import JSZip from 'jszip';
 import { marked } from 'marked';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import { createTableOfContents, type TableOfContentsEntry } from './tableOfContents';
 
 export type FileKind = 'markdown' | 'text' | 'pdf' | 'epub' | 'unsupported';
 
@@ -13,6 +14,7 @@ export type ParsedNovel = {
   rawText: string;
   source?: 'local' | 'google-drive';
   savedAt?: string;
+  tableOfContents?: TableOfContentsEntry[];
 };
 
 type EpubManifestItem = {
@@ -48,9 +50,26 @@ export function txtToHtml(text: string): string {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 
-  return paragraphs
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
-    .join('\n');
+  return paragraphs.map(renderTextParagraph).join('\n');
+}
+
+function renderTextParagraph(paragraph: string): string {
+  const lines = paragraph.split('\n').map((line) => line.trim()).filter(Boolean);
+  const [firstLine, ...remainingLines] = lines;
+
+  if (firstLine && isLikelySectionHeading(firstLine)) {
+    const heading = `<h2>${escapeHtml(firstLine)}</h2>`;
+    const remaining = remainingLines.length > 0
+      ? `<p>${escapeHtml(remainingLines.join('\n')).replace(/\n/g, '<br>')}</p>`
+      : '';
+    return `${heading}${remaining}`;
+  }
+
+  return `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`;
+}
+
+function isLikelySectionHeading(value: string): boolean {
+  return /^(?:(?:chapter|ch\.?|volume|vol\.?|book|part|prologue|epilogue|chương|hồi|quyển)\b.{0,100}|(?:\d+|[ivxlcdm]+)[.:]\s+.{1,100})$/iu.test(value);
 }
 
 export async function parseNovelFile(file: File): Promise<ParsedNovel> {
@@ -63,17 +82,24 @@ export async function parseNovelFile(file: File): Promise<ParsedNovel> {
 
   if (kind === 'pdf') {
     const rawText = await extractPdfText(await file.arrayBuffer());
-    return { title, kind, rawText, html: txtToHtml(rawText) };
+    return withTableOfContents({ title, kind, rawText, html: txtToHtml(rawText) });
   }
 
   if (kind === 'epub') {
     const parsed = await extractEpubContent(await file.arrayBuffer());
-    return { title, kind, ...parsed };
+    return withTableOfContents({ title, kind, ...parsed });
   }
 
   const rawText = decoder.decode(await file.arrayBuffer());
   const html = kind === 'markdown' ? renderMarkdown(rawText) : txtToHtml(rawText);
-  return { title, kind, rawText, html };
+  return withTableOfContents({ title, kind, rawText, html });
+}
+
+export function withTableOfContents(novel: ParsedNovel): ParsedNovel {
+  if (novel.tableOfContents?.length) return novel;
+
+  const tableOfContents = createTableOfContents(novel.html, novel.kind);
+  return { ...novel, html: tableOfContents.html, tableOfContents: tableOfContents.entries };
 }
 
 async function extractPdfText(data: ArrayBuffer): Promise<string> {
@@ -111,7 +137,7 @@ async function extractEpubContent(data: ArrayBuffer): Promise<Pick<ParsedNovel, 
   const chapterHtml: string[] = [];
   const chapterText: string[] = [];
 
-  for (const href of spineHrefs) {
+  for (const [chapterIndex, href] of spineHrefs.entries()) {
     const chapterPath = normalizeZipPath(joinZipPath(opfDirectory, href));
     const chapterXml = await readTextFile(zip, chapterPath);
     const chapterDocument = parseXml(chapterXml, chapterPath);
@@ -120,8 +146,11 @@ async function extractEpubContent(data: ArrayBuffer): Promise<Pick<ParsedNovel, 
 
     await inlineEpubImages(body, zip, directoryName(chapterPath), imageUrls);
     removeNamespaceAttributes(body);
+    const chapterLabel = getEpubChapterLabel(chapterDocument, body, chapterIndex);
     chapterText.push((body.textContent ?? '').replace(/\s+/g, ' ').trim());
-    chapterHtml.push(sanitizeHtml(stripXmlnsAttributes(body.innerHTML)));
+    chapterHtml.push(
+      `<section data-epub-chapter="${escapeHtml(chapterLabel)}">${sanitizeHtml(stripXmlnsAttributes(body.innerHTML))}</section>`
+    );
   }
 
   if (chapterHtml.length === 0) {
@@ -132,6 +161,12 @@ async function extractEpubContent(data: ArrayBuffer): Promise<Pick<ParsedNovel, 
     html: chapterHtml.join('\n<hr>\n'),
     rawText: chapterText.filter(Boolean).join('\n\n')
   };
+}
+
+function getEpubChapterLabel(chapterDocument: Document, body: Element, chapterIndex: number): string {
+  const heading = body.querySelector('h1, h2, h3, h4, h5, h6')?.textContent?.trim();
+  const title = chapterDocument.querySelector('title')?.textContent?.trim();
+  return heading || title || `Chapter ${chapterIndex + 1}`;
 }
 
 async function findPackageDocumentPath(zip: JSZip): Promise<string> {

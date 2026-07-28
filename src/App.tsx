@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Bookmark, FileText, Library, Trash2 } from 'lucide-react';
+import { BookOpen, Bookmark, FileText, Library, ListTree, Trash2 } from 'lucide-react';
 import './styles.css';
 import { ReaderControls } from './components/ReaderControls';
-import { type ParsedNovel, parseNovelFile } from './lib/fileReaders';
+import { type ParsedNovel, parseNovelFile, withTableOfContents } from './lib/fileReaders';
 import {
   createHighlightAnchorFromSelection,
   loadHighlights,
@@ -59,12 +59,14 @@ function App() {
   const [highlights, setHighlights] = useState<TextHighlight[]>([]);
   const [isBookmarkHubOpen, setIsBookmarkHubOpen] = useState(false);
   const [isHighlightHubOpen, setIsHighlightHubOpen] = useState(false);
+  const [isTableOfContentsOpen, setIsTableOfContentsOpen] = useState(false);
   const [pendingHighlightAnchor, setPendingHighlightAnchor] = useState<HighlightAnchor | null>(null);
   const [selectionToolbarPosition, setSelectionToolbarPosition] = useState<SelectionToolbarPosition | null>(null);
   const resumeProgressRef = useRef<number | null>(null);
   const isRestoringProgressRef = useRef(false);
   const bookmarkHubRef = useRef<HTMLDivElement | null>(null);
   const highlightHubRef = useRef<HTMLDivElement | null>(null);
+  const tableOfContentsRef = useRef<HTMLDivElement | null>(null);
   const readerRef = useRef<HTMLElement | null>(null);
 
   const readerStyle = useMemo(
@@ -145,22 +147,25 @@ function App() {
   }, [activeTab, novel?.id]);
 
   useEffect(() => {
-    if (!isBookmarkHubOpen && !isHighlightHubOpen) return;
+    if (!isBookmarkHubOpen && !isHighlightHubOpen && !isTableOfContentsOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       const insideBookmarkHub = bookmarkHubRef.current?.contains(target) ?? false;
       const insideHighlightHub = highlightHubRef.current?.contains(target) ?? false;
+      const insideTableOfContents = tableOfContentsRef.current?.contains(target) ?? false;
 
-      if (!insideBookmarkHub && !insideHighlightHub) {
+      if (!insideBookmarkHub && !insideHighlightHub && !insideTableOfContents) {
         setIsBookmarkHubOpen(false);
         setIsHighlightHubOpen(false);
+        setIsTableOfContentsOpen(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsBookmarkHubOpen(false);
         setIsHighlightHubOpen(false);
+        setIsTableOfContentsOpen(false);
       }
     };
 
@@ -171,13 +176,14 @@ function App() {
       document.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isBookmarkHubOpen, isHighlightHubOpen]);
+  }, [isBookmarkHubOpen, isHighlightHubOpen, isTableOfContentsOpen]);
 
   useEffect(() => {
     if (activeTab !== 'reader') {
       setPendingHighlightAnchor(null);
       setSelectionToolbarPosition(null);
       setIsHighlightHubOpen(false);
+      setIsTableOfContentsOpen(false);
     }
   }, [activeTab, novel?.id]);
 
@@ -209,7 +215,7 @@ function App() {
   }
 
   function openParsedNovel(parsed: ParsedNovel, message: string) {
-    const novelWithId = { ...parsed, id: parsed.id ?? createLibraryId(parsed) };
+    const novelWithId = { ...withTableOfContents(parsed), id: parsed.id ?? createLibraryId(parsed) };
     const savedProgress = loadReadingProgress(novelWithId.id);
     const progressRatio = savedProgress?.ratio ?? 0;
     const savedBookmarks = loadReadingBookmarks(novelWithId.id);
@@ -223,6 +229,7 @@ function App() {
     setSelectionToolbarPosition(null);
     setIsBookmarkHubOpen(false);
     setIsHighlightHubOpen(false);
+    setIsTableOfContentsOpen(false);
     setNovel(novelWithId);
     setActiveTab('reader');
 
@@ -235,6 +242,7 @@ function App() {
   }
 
   function openLibraryItem(item: LibraryItem) {
+    const novelWithTableOfContents = withTableOfContents(item);
     const savedProgress = loadReadingProgress(item.id);
     const progressRatio = savedProgress?.ratio ?? 0;
     const savedBookmarks = loadReadingBookmarks(item.id);
@@ -248,7 +256,8 @@ function App() {
     setSelectionToolbarPosition(null);
     setIsBookmarkHubOpen(false);
     setIsHighlightHubOpen(false);
-    setNovel(item);
+    setIsTableOfContentsOpen(false);
+    setNovel(novelWithTableOfContents);
     setActiveTab('reader');
     setStatus(`Opened ${item.title} from library.${progressRatio > 0 ? ` Resumed at ${formatReadingProgress(progressRatio)}.` : ''}`);
   }
@@ -267,6 +276,7 @@ function App() {
       setSelectionToolbarPosition(null);
       setIsBookmarkHubOpen(false);
       setIsHighlightHubOpen(false);
+      setIsTableOfContentsOpen(false);
       resumeProgressRef.current = null;
     }
     setStatus('Removed from library.');
@@ -374,6 +384,18 @@ function App() {
     const nextHighlights = loadHighlights(novel.id);
     setHighlights(nextHighlights);
     setStatus(`Removed highlight “${highlight.quote}”.`);
+  }
+
+  function jumpToTableOfContentsEntry(entryId: string, label: string) {
+    const element = readerRef.current?.querySelector(`[data-toc-id="${entryId}"]`);
+    if (!(element instanceof HTMLElement)) {
+      setStatus('Could not find that section in the current book.');
+      return;
+    }
+
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setIsTableOfContentsOpen(false);
+    setStatus(`Jumped to ${label}.`);
   }
 
   function updatePreference(key: NumericPreference, delta: number) {
@@ -545,6 +567,44 @@ function App() {
                       ))}
                     </ul>
                   )}
+                </section>
+              ) : null}
+            </div>
+            <div className="table-of-contents-hub" ref={tableOfContentsRef}>
+              <button
+                type="button"
+                className={`table-of-contents-toggle ${isTableOfContentsOpen ? 'active' : ''}`}
+                aria-label="Open table of contents"
+                aria-haspopup="dialog"
+                aria-expanded={isTableOfContentsOpen}
+                onClick={() => {
+                  setIsTableOfContentsOpen((current) => !current);
+                  setIsBookmarkHubOpen(false);
+                  setIsHighlightHubOpen(false);
+                }}
+              >
+                <ListTree size={18} />
+              </button>
+              {isTableOfContentsOpen ? (
+                <section className="table-of-contents-panel" role="dialog" aria-label="Table of contents">
+                  <header className="table-of-contents-header">
+                    <div>
+                      <strong>Table of contents</strong>
+                      <small>{`${novel.tableOfContents?.length ?? 0} sections`}</small>
+                    </div>
+                  </header>
+                  <ol className="table-of-contents-list">
+                    {(novel.tableOfContents ?? []).map((entry) => (
+                      <li key={entry.id} style={{ paddingLeft: `${Math.max(0, entry.level - 1) * 0.75}rem` }}>
+                        <button
+                          type="button"
+                          onClick={() => jumpToTableOfContentsEntry(entry.id, entry.label)}
+                        >
+                          {entry.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
                 </section>
               ) : null}
             </div>

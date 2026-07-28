@@ -28,6 +28,7 @@ describe('App reading progress', () => {
     });
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
     Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 2000 });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
     Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 0 });
@@ -74,6 +75,30 @@ describe('App reading progress', () => {
     await user.click(screen.getByRole('button', { name: /show images/i }));
 
     expect(reader).not.toHaveClass('images-hidden');
+  });
+
+  it('opens the table of contents and jumps to a section', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.upload(
+      screen.getByLabelText(/choose file/i),
+      new File(['# Volume One\n\nOpening\n\n## Chapter One\n\nThe story begins.'], 'contents.md', { type: 'text/markdown' })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Opened contents \(markdown\)\. Saved to library\./)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /open table of contents/i }));
+
+    const tableOfContents = screen.getByRole('dialog', { name: /table of contents/i });
+    expect(within(tableOfContents).getByText('2 sections')).toBeInTheDocument();
+    await user.click(within(tableOfContents).getByRole('button', { name: 'Chapter One' }));
+
+    expect(screen.getByText('Jumped to Chapter One.')).toBeInTheDocument();
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
   });
 
   it('opens bookmark hub and lets user manage multiple bookmarks', async () => {

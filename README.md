@@ -1,6 +1,6 @@
 # Light Novel Reader
 
-A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), PDF (`.pdf`), and EPUB (`.epub`) files.
+A local-first light novel reader for Markdown (`.md`), text (`.txt`), PDF (`.pdf`), and EPUB (`.epub`) files. Run it in a browser during development or package it as a portable Windows desktop app with Electron.
 
 ## Demo
 
@@ -16,7 +16,11 @@ A browser-based light novel reader for local Markdown (`.md`), text (`.txt`), PD
 - Import public Google Drive sharing links for supported file types.
 - Save opened stories to a local Library tab for quick reopening.
 - Save reading progress per story and resume from the last position.
+- Navigate chapters and generated reading landmarks from the table of contents.
+- Create multiple bookmarks per story and jump back to saved positions.
+- Highlight selected text and manage saved highlights.
 - Customize light/dark/sepia themes, font size, line height, and content width.
+- Hide or restore images and EPUB illustrations with a persistent reader setting.
 - No uploads; files are processed in the browser.
 
 ## Google Drive import
@@ -44,10 +48,17 @@ The Windows portable executable is generated in `../lightnovel-reader-release/` 
 
 ```text
 src/
+  App.tsx
+  styles.css
   components/ReaderControls.tsx
   lib/fileReaders.ts
   lib/googleDrive.ts
+  lib/highlights.ts
   lib/library.ts
   lib/preferences.ts
+  lib/readingProgress.ts
+  lib/tableOfContents.ts
   test/*.test.ts
+electron/
+  main.cjs
 ```
