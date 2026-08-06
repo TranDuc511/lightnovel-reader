@@ -15,6 +15,9 @@ A local-first light novel reader for Markdown (`.md`), text (`.txt`), PDF (`.pdf
 - Read EPUB spine content and preserve embedded illustration images.
 - Import public Google Drive sharing links for supported file types.
 - Save opened stories to a local Library tab for quick reopening.
+- Read in a responsive single-page or two-page book layout.
+- Choose left-to-right or right-to-left page turns independently from text direction.
+- Navigate pages with edge controls, keyboard shortcuts, or the page scrubber.
 - Save reading progress per story and resume from the last position.
 - Navigate chapters and generated reading landmarks from the table of contents.
 - Create multiple bookmarks per story and jump back to saved positions.

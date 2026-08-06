@@ -1,4 +1,7 @@
 export type ThemeName = 'light' | 'sepia' | 'dark';
+export type PageDirection = 'ltr' | 'rtl';
+export type TextDirection = 'auto' | 'ltr' | 'rtl';
+export type SpreadMode = 'auto' | 'single' | 'double';
 
 export type ReaderPreferences = {
   theme: ThemeName;
@@ -6,6 +9,9 @@ export type ReaderPreferences = {
   lineHeight: number;
   contentWidth: number;
   showImages: boolean;
+  pageDirection: PageDirection;
+  textDirection: TextDirection;
+  spreadMode: SpreadMode;
 };
 
 export const defaultPreferences: ReaderPreferences = {
@@ -13,7 +19,10 @@ export const defaultPreferences: ReaderPreferences = {
   fontSize: 19,
   lineHeight: 1.75,
   contentWidth: 72,
-  showImages: true
+  showImages: true,
+  pageDirection: 'ltr',
+  textDirection: 'auto',
+  spreadMode: 'auto'
 };
 
 const READER_PREFERENCES_STORAGE_KEY = 'lightnovel-reader.preferences.v1';
@@ -63,12 +72,33 @@ function normalizePreferences(value: unknown): ReaderPreferences {
     fontSize: normalizeNumericPreference('fontSize', preferences.fontSize),
     lineHeight: normalizeNumericPreference('lineHeight', preferences.lineHeight),
     contentWidth: normalizeNumericPreference('contentWidth', preferences.contentWidth),
-    showImages: typeof preferences.showImages === 'boolean' ? preferences.showImages : defaultPreferences.showImages
+    showImages: typeof preferences.showImages === 'boolean' ? preferences.showImages : defaultPreferences.showImages,
+    pageDirection: isPageDirection(preferences.pageDirection)
+      ? preferences.pageDirection
+      : defaultPreferences.pageDirection,
+    textDirection: isTextDirection(preferences.textDirection)
+      ? preferences.textDirection
+      : defaultPreferences.textDirection,
+    spreadMode: isSpreadMode(preferences.spreadMode)
+      ? preferences.spreadMode
+      : defaultPreferences.spreadMode
   };
 }
 
 function isThemeName(value: unknown): value is ThemeName {
   return value === 'light' || value === 'sepia' || value === 'dark';
+}
+
+function isPageDirection(value: unknown): value is PageDirection {
+  return value === 'ltr' || value === 'rtl';
+}
+
+function isTextDirection(value: unknown): value is TextDirection {
+  return value === 'auto' || value === 'ltr' || value === 'rtl';
+}
+
+function isSpreadMode(value: unknown): value is SpreadMode {
+  return value === 'auto' || value === 'single' || value === 'double';
 }
 
 function normalizeNumericPreference(key: NumericPreference, value: unknown): number {

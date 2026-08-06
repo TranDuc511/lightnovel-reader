@@ -25,7 +25,10 @@ describe('reader preferences', () => {
       fontSize: 24,
       lineHeight: 1.9,
       contentWidth: 80,
-      showImages: false
+      showImages: false,
+      pageDirection: 'rtl',
+      textDirection: 'auto',
+      spreadMode: 'double'
     });
 
     expect(preferences).toEqual({
@@ -33,7 +36,10 @@ describe('reader preferences', () => {
       fontSize: 24,
       lineHeight: 1.9,
       contentWidth: 80,
-      showImages: false
+      showImages: false,
+      pageDirection: 'rtl',
+      textDirection: 'auto',
+      spreadMode: 'double'
     });
     expect(loadPreferences()).toEqual(preferences);
   });
@@ -60,5 +66,18 @@ describe('reader preferences', () => {
     );
 
     expect(loadPreferences().showImages).toBe(true);
+  });
+
+  it('defaults old saved preferences to left-to-right automatic spreads', () => {
+    window.localStorage.setItem(
+      'lightnovel-reader.preferences.v1',
+      JSON.stringify({ theme: 'sepia', fontSize: 19, lineHeight: 1.75, contentWidth: 72, showImages: true })
+    );
+
+    expect(loadPreferences()).toMatchObject({
+      pageDirection: 'ltr',
+      textDirection: 'auto',
+      spreadMode: 'auto'
+    });
   });
 });

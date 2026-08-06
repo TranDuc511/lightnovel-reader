@@ -52,7 +52,7 @@ describe('App reading progress', () => {
       expect(screen.getByText(/Opened resume-me \(text\)\. Resumed at 46%\. Saved to library\./)).toBeInTheDocument();
     });
     expect(screen.getByLabelText('Reading progress')).toHaveTextContent('Progress 46%');
-    expect(window.scrollTo).toHaveBeenCalled();
+    expect(window.scrollTo).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /library/i }));
 
@@ -98,7 +98,7 @@ describe('App reading progress', () => {
     await user.click(within(tableOfContents).getByRole('button', { name: 'Chapter One' }));
 
     expect(screen.getByText('Jumped to Chapter One.')).toBeInTheDocument();
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 
   it('opens bookmark hub and lets user manage multiple bookmarks', async () => {
@@ -113,7 +113,6 @@ describe('App reading progress', () => {
       expect(screen.getByText(/Opened bookmark-me \(text\)\. Saved to library\./)).toBeInTheDocument();
     });
 
-    window.scrollY = 250;
     await user.click(screen.getByRole('button', { name: /open bookmark hub/i }));
 
     const hub = screen.getByRole('dialog', { name: /bookmark hub/i });
@@ -121,23 +120,21 @@ describe('App reading progress', () => {
 
     await user.click(within(hub).getByRole('button', { name: /add current spot/i }));
 
-    expect(within(hub).getByRole('button', { name: /jump to bookmark 25%/i })).toBeInTheDocument();
+    expect(within(hub).getByRole('button', { name: /jump to bookmark 0%/i })).toBeInTheDocument();
     expect(within(hub).getByText('1 saved')).toBeInTheDocument();
 
-    window.scrollY = 750;
     await user.click(within(hub).getByRole('button', { name: /add current spot/i }));
 
-    expect(within(hub).getByRole('button', { name: /jump to bookmark 75%/i })).toBeInTheDocument();
-    expect(within(hub).getByRole('button', { name: /jump to bookmark 25%/i })).toBeInTheDocument();
+    expect(within(hub).getAllByRole('button', { name: /jump to bookmark 0%/i })).toHaveLength(2);
     expect(within(hub).getByText('2 saved')).toBeInTheDocument();
 
-    await user.click(within(hub).getByRole('button', { name: /jump to bookmark 25%/i }));
+    await user.click(within(hub).getAllByRole('button', { name: /jump to bookmark 0%/i })[0]);
 
-    expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 250, behavior: 'smooth' });
+    expect(screen.getByText('Jumped to bookmark at 0%.')).toBeInTheDocument();
 
-    await user.click(within(hub).getByRole('button', { name: /remove bookmark 75%/i }));
+    await user.click(within(hub).getAllByRole('button', { name: /remove bookmark 0%/i })[0]);
 
-    expect(within(hub).queryByRole('button', { name: /jump to bookmark 75%/i })).not.toBeInTheDocument();
+    expect(within(hub).getAllByRole('button', { name: /jump to bookmark 0%/i })).toHaveLength(1);
     expect(within(hub).getByText('1 saved')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /library/i }));
@@ -179,5 +176,24 @@ describe('App reading progress', () => {
     await user.click(screen.getByRole('button', { name: /library/i }));
 
     expect(screen.getByText('Highlights 1')).toBeInTheDocument();
+  });
+
+  it('persists right-to-left page turns independently from text direction', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByText('Display'));
+    await user.click(screen.getByRole('button', { name: 'Right to left' }));
+
+    expect(screen.getByText('Right to left', { selector: '.book-running-header span:last-child' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next pages' })).toHaveClass('book-page-edge-left');
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem('lightnovel-reader.preferences.v1') ?? '{}')).toMatchObject({
+        pageDirection: 'rtl',
+        textDirection: 'auto'
+      });
+    });
   });
 });

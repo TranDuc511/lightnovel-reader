@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Bookmark, FileText, Library, ListTree, Trash2 } from 'lucide-react';
 import './styles.css';
+import { BookViewport, type BookViewportHandle } from './components/BookViewport';
 import { ReaderControls } from './components/ReaderControls';
 import { type ParsedNovel, parseNovelFile, withTableOfContents } from './lib/fileReaders';
 import {
@@ -26,8 +27,6 @@ import {
 } from './lib/preferences';
 import {
   type ReadingBookmark,
-  calculateReadingProgress,
-  calculateScrollTopForProgress,
   formatReadingProgress,
   loadReadingBookmarks,
   loadReadingProgress,
@@ -62,21 +61,10 @@ function App() {
   const [isTableOfContentsOpen, setIsTableOfContentsOpen] = useState(false);
   const [pendingHighlightAnchor, setPendingHighlightAnchor] = useState<HighlightAnchor | null>(null);
   const [selectionToolbarPosition, setSelectionToolbarPosition] = useState<SelectionToolbarPosition | null>(null);
-  const resumeProgressRef = useRef<number | null>(null);
-  const isRestoringProgressRef = useRef(false);
   const bookmarkHubRef = useRef<HTMLDivElement | null>(null);
   const highlightHubRef = useRef<HTMLDivElement | null>(null);
   const tableOfContentsRef = useRef<HTMLDivElement | null>(null);
-  const readerRef = useRef<HTMLElement | null>(null);
-
-  const readerStyle = useMemo(
-    () => ({
-      fontSize: `${preferences.fontSize}px`,
-      lineHeight: preferences.lineHeight,
-      maxWidth: `${preferences.contentWidth}ch`
-    }),
-    [preferences]
-  );
+  const readerRef = useRef<BookViewportHandle | null>(null);
 
   const displayHtml = useMemo(() => {
     if (!novel?.html) return sampleHtml;
@@ -86,65 +74,6 @@ function App() {
   useEffect(() => {
     savePreferences(preferences);
   }, [preferences]);
-
-  useEffect(() => {
-    if (!novel?.id || activeTab !== 'reader') return;
-
-    const resumeRatio = resumeProgressRef.current;
-    resumeProgressRef.current = null;
-    if (resumeRatio === null) return;
-
-    isRestoringProgressRef.current = true;
-    const frameId = window.requestAnimationFrame(() => {
-      window.scrollTo({
-        top: calculateScrollTopForProgress(
-          resumeRatio,
-          document.documentElement.scrollHeight,
-          window.innerHeight
-        ),
-        behavior: 'auto'
-      });
-      setReadingProgress(resumeRatio);
-      window.setTimeout(() => {
-        isRestoringProgressRef.current = false;
-      }, 0);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      isRestoringProgressRef.current = false;
-    };
-  }, [activeTab, novel?.id]);
-
-  useEffect(() => {
-    const novelId = novel?.id;
-    if (!novelId || activeTab !== 'reader') return;
-
-    let frameId: number | null = null;
-
-    const syncProgress = () => {
-      frameId = null;
-      if (isRestoringProgressRef.current) return;
-
-      const ratio = calculateReadingProgress(window.scrollY, document.documentElement.scrollHeight, window.innerHeight);
-      setReadingProgress(ratio);
-      saveReadingProgress(novelId, ratio);
-    };
-
-    const requestSync = () => {
-      if (frameId !== null) return;
-      frameId = window.requestAnimationFrame(syncProgress);
-    };
-
-    window.addEventListener('scroll', requestSync, { passive: true });
-    window.addEventListener('resize', requestSync);
-
-    return () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId);
-      window.removeEventListener('scroll', requestSync);
-      window.removeEventListener('resize', requestSync);
-    };
-  }, [activeTab, novel?.id]);
 
   useEffect(() => {
     if (!isBookmarkHubOpen && !isHighlightHubOpen && !isTableOfContentsOpen) return;
@@ -221,7 +150,6 @@ function App() {
     const savedBookmarks = loadReadingBookmarks(novelWithId.id);
     const savedHighlights = loadHighlights(novelWithId.id);
 
-    resumeProgressRef.current = progressRatio;
     setReadingProgress(progressRatio);
     setBookmarks(savedBookmarks);
     setHighlights(savedHighlights);
@@ -248,7 +176,6 @@ function App() {
     const savedBookmarks = loadReadingBookmarks(item.id);
     const savedHighlights = loadHighlights(item.id);
 
-    resumeProgressRef.current = progressRatio;
     setReadingProgress(progressRatio);
     setBookmarks(savedBookmarks);
     setHighlights(savedHighlights);
@@ -277,13 +204,12 @@ function App() {
       setIsBookmarkHubOpen(false);
       setIsHighlightHubOpen(false);
       setIsTableOfContentsOpen(false);
-      resumeProgressRef.current = null;
     }
     setStatus('Removed from library.');
   }
 
   function captureCurrentProgress() {
-    return calculateReadingProgress(window.scrollY, document.documentElement.scrollHeight, window.innerHeight);
+    return readerRef.current?.getProgress() ?? readingProgress;
   }
 
   function addBookmark() {
@@ -300,10 +226,7 @@ function App() {
   }
 
   function jumpToBookmark(bookmark: ReadingBookmark) {
-    window.scrollTo({
-      top: calculateScrollTopForProgress(bookmark.ratio, document.documentElement.scrollHeight, window.innerHeight),
-      behavior: 'smooth'
-    });
+    readerRef.current?.goToProgress(bookmark.ratio);
     setReadingProgress(bookmark.ratio);
     setStatus(`Jumped to bookmark at ${formatReadingProgress(bookmark.ratio)}.`);
   }
@@ -342,16 +265,17 @@ function App() {
   }
 
   function refreshPendingHighlight() {
-    if (!readerRef.current || !novel?.id || activeTab !== 'reader') {
+    const readerElement = readerRef.current?.getReaderElement();
+    if (!readerElement || !novel?.id || activeTab !== 'reader') {
       setPendingHighlightAnchor(null);
       setSelectionToolbarPosition(null);
       return;
     }
 
     const selection = window.getSelection();
-    const anchor = createHighlightAnchorFromSelection(readerRef.current, selection);
+    const anchor = createHighlightAnchorFromSelection(readerElement, selection);
     setPendingHighlightAnchor(anchor);
-    setSelectionToolbarPosition(anchor ? measureSelectionToolbarPosition(readerRef.current, selection) : null);
+    setSelectionToolbarPosition(anchor ? measureSelectionToolbarPosition(readerElement, selection) : null);
   }
 
   function addHighlight() {
@@ -367,13 +291,11 @@ function App() {
   }
 
   function jumpToHighlight(highlight: TextHighlight) {
-    const element = readerRef.current?.querySelector(`[data-highlight-id="${highlight.highlightId}"]`);
-    if (!(element instanceof HTMLElement)) {
+    if (!readerRef.current?.goToSelector(`[data-highlight-id="${highlight.highlightId}"]`)) {
       setStatus('Could not find that highlight in current chapter.');
       return;
     }
 
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setStatus(`Jumped to highlight “${highlight.quote}”.`);
   }
 
@@ -387,13 +309,11 @@ function App() {
   }
 
   function jumpToTableOfContentsEntry(entryId: string, label: string) {
-    const element = readerRef.current?.querySelector(`[data-toc-id="${entryId}"]`);
-    if (!(element instanceof HTMLElement)) {
+    if (!readerRef.current?.goToSelector(`[data-toc-id="${entryId}"]`)) {
       setStatus('Could not find that section in the current book.');
       return;
     }
 
-    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setIsTableOfContentsOpen(false);
     setStatus(`Jumped to ${label}.`);
   }
@@ -411,7 +331,9 @@ function App() {
 
   return (
     <main
-      className={`app theme-${preferences.theme} ${isDragging ? 'dragging' : ''}`}
+      className={`app theme-${preferences.theme} ${isDragging ? 'dragging' : ''} ${
+        novel && activeTab === 'reader' ? 'reader-open' : ''
+      }`}
       onDragOver={(event) => {
         event.preventDefault();
         setIsDragging(true);
@@ -429,7 +351,7 @@ function App() {
           <BookOpen size={28} />
           <div>
             <strong>Light Novel Reader</strong>
-            <span>MD · TXT · PDF · EPUB · Drive</span>
+            <span>MD / TXT / PDF / EPUB / Drive</span>
           </div>
         </div>
         <ReaderControls
@@ -439,6 +361,15 @@ function App() {
             setPreferences((current) => ({ ...current, showImages: !current.showImages }));
           }}
           onPreferenceChange={updatePreference}
+          onPageDirectionChange={(pageDirection) => {
+            setPreferences((current) => ({ ...current, pageDirection }));
+          }}
+          onTextDirectionChange={(textDirection) => {
+            setPreferences((current) => ({ ...current, textDirection }));
+          }}
+          onSpreadModeChange={(spreadMode) => {
+            setPreferences((current) => ({ ...current, spreadMode }));
+          }}
           onFileSelect={(file) => void openFile(file)}
           onDriveImport={(url) => void importFromDrive(url)}
         />
@@ -630,17 +561,30 @@ function App() {
       </nav>
 
       {activeTab === 'reader' ? (
-        <article
+        <BookViewport
           ref={readerRef}
-          className={`reader ${preferences.showImages ? '' : 'images-hidden'}`}
-          style={readerStyle}
+          contentKey={novel?.id ?? 'reader-welcome'}
+          title={novel?.title ?? 'Light Novel Reader'}
+          html={displayHtml}
+          initialProgress={readingProgress}
+          fontSize={preferences.fontSize}
+          lineHeight={preferences.lineHeight}
+          contentWidth={preferences.contentWidth}
+          showImages={preferences.showImages}
+          pageDirection={preferences.pageDirection}
+          textDirection={preferences.textDirection}
+          spreadMode={preferences.spreadMode}
+          onProgressChange={(ratio) => {
+            setReadingProgress(ratio);
+            if (novel?.id) saveReadingProgress(novel.id, ratio);
+          }}
+          onAddBookmark={novel ? addBookmark : undefined}
           onMouseUp={(event) => {
             if ((event.target as HTMLElement).closest('.reader-selection-toolbar')) return;
             refreshPendingHighlight();
           }}
           onKeyUp={refreshPendingHighlight}
-        >
-          {pendingHighlightAnchor && selectionToolbarPosition ? (
+          toolbar={pendingHighlightAnchor && selectionToolbarPosition ? (
             <div
               className="reader-selection-toolbar"
               style={{ top: `${selectionToolbarPosition.top}px`, left: `${selectionToolbarPosition.left}px` }}
@@ -657,8 +601,7 @@ function App() {
               </button>
             </div>
           ) : null}
-          <div dangerouslySetInnerHTML={{ __html: displayHtml }} />
-        </article>
+        />
       ) : (
         <section className="library-panel" aria-label="Saved story library">
           <header>
