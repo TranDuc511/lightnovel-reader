@@ -13,17 +13,25 @@ import {
   useState
 } from 'react';
 import { ArrowLeft, ArrowRight, Bookmark, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PageFlipLayer, type PageFlipLayout as BookLayout } from './PageFlipLayer';
+import {
+  createPageFlipPlan,
+  type PageFlipMotion,
+  type PageFlipPlan
+} from '../lib/pageFlip';
 import type { PageDirection, SpreadMode, TextDirection } from '../lib/preferences';
 
-type BookLayout = {
-  viewportWidth: number;
-  viewportHeight: number;
-  pagesPerSpread: number;
-  pageWidth: number;
-  columnGap: number;
-  pageStep: number;
-  paddingX: number;
-  paddingY: number;
+type NavigationMode = PageFlipMotion | 'instant';
+
+type PageFlipState = {
+  plan: PageFlipPlan;
+  phase: 'preparing' | 'turning';
+  progress: number;
+};
+
+type QueuedNavigation = {
+  page: number;
+  motion: PageFlipMotion;
 };
 
 export type BookViewportHandle = {
@@ -88,35 +96,101 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
   const readerRef = useRef<HTMLElement | null>(null);
   const pendingProgressRef = useRef(initialProgress);
   const onProgressChangeRef = useRef(onProgressChange);
+  const measuredImageSourcesRef = useRef(new Set<string>());
   const [layout, setLayout] = useState<BookLayout>(emptyLayout);
   const [pageCount, setPageCount] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
+  const [visualPage, setVisualPage] = useState(0);
   const [contentRevision, setContentRevision] = useState(0);
   const [isPaginationReady, setIsPaginationReady] = useState(false);
+  const [pageFlip, setPageFlip] = useState<PageFlipState | null>(null);
+  const [queuedNavigation, setQueuedNavigation] = useState<QueuedNavigation | null>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   const lastSpreadStart = Math.max(
     0,
     Math.floor((pageCount - 1) / layout.pagesPerSpread) * layout.pagesPerSpread
   );
-  const canGoPrevious = currentPage > 0;
-  const canGoNext = currentPage < lastSpreadStart;
 
-  const setLogicalPage = useCallback(
+  const normalizePage = useCallback(
     (page: number) => {
-      const spreadStart = Math.floor(Math.max(0, Math.min(lastSpreadStart, page)) / layout.pagesPerSpread)
+      return Math.floor(Math.max(0, Math.min(lastSpreadStart, page)) / layout.pagesPerSpread)
         * layout.pagesPerSpread;
-      setCurrentPage(spreadStart);
     },
     [lastSpreadStart, layout.pagesPerSpread]
   );
 
+  const commitPage = useCallback((page: number) => {
+    setVisualPage(page);
+    setCurrentPage(page);
+  }, []);
+
+  const navigateToPage = useCallback(
+    (page: number, mode: NavigationMode) => {
+      const targetPage = normalizePage(page);
+
+      if (
+        mode === 'instant'
+        || prefersReducedMotion
+        || !isPaginationReady
+        || layout.pageStep <= 0
+      ) {
+        pendingProgressRef.current = pageCount <= 1 ? 0 : targetPage / (pageCount - 1);
+        setQueuedNavigation(null);
+        setPageFlip(null);
+        commitPage(targetPage);
+        return;
+      }
+
+      if (pageFlip) {
+        setQueuedNavigation(
+          targetPage === pageFlip.plan.targetPage
+            ? null
+            : { page: targetPage, motion: mode }
+        );
+        return;
+      }
+
+      if (targetPage === currentPage) return;
+
+      pendingProgressRef.current = pageCount <= 1 ? 0 : targetPage / (pageCount - 1);
+      setVisualPage(targetPage);
+      setPageFlip({
+        phase: 'preparing',
+        progress: 0,
+        plan: createPageFlipPlan({
+          fromPage: currentPage,
+          targetPage,
+          pageDirection,
+          motion: mode
+        })
+      });
+    },
+    [
+      commitPage,
+      currentPage,
+      isPaginationReady,
+      layout.pageStep,
+      layout.pagesPerSpread,
+      normalizePage,
+      pageCount,
+      pageDirection,
+      pageFlip,
+      prefersReducedMotion
+    ]
+  );
+
+  const navigationPage = queuedNavigation?.page ?? pageFlip?.plan.targetPage ?? currentPage;
+  const canGoPrevious = navigationPage > 0;
+  const canGoNext = navigationPage < lastSpreadStart;
+
   const goPrevious = useCallback(() => {
-    setLogicalPage(currentPage - layout.pagesPerSpread);
-  }, [currentPage, layout.pagesPerSpread, setLogicalPage]);
+    navigateToPage(navigationPage - layout.pagesPerSpread, 'turn');
+  }, [layout.pagesPerSpread, navigateToPage, navigationPage]);
 
   const goNext = useCallback(() => {
-    setLogicalPage(currentPage + layout.pagesPerSpread);
-  }, [currentPage, layout.pagesPerSpread, setLogicalPage]);
+    navigateToPage(navigationPage + layout.pagesPerSpread, 'turn');
+  }, [layout.pagesPerSpread, navigateToPage, navigationPage]);
 
   const getProgress = useCallback(() => {
     if (pageCount <= 1) return 0;
@@ -126,10 +200,9 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
   const goToProgress = useCallback(
     (ratio: number) => {
       const normalized = Math.min(1, Math.max(0, Number.isFinite(ratio) ? ratio : 0));
-      pendingProgressRef.current = normalized;
-      setLogicalPage(Math.round(normalized * Math.max(0, pageCount - 1)));
+      navigateToPage(Math.round(normalized * Math.max(0, pageCount - 1)), 'jump');
     },
-    [pageCount, setLogicalPage]
+    [navigateToPage, pageCount]
   );
 
   const getElementPage = useCallback(
@@ -152,11 +225,17 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
     (selector: string) => {
       const element = readerRef.current?.querySelector(selector);
       if (!(element instanceof HTMLElement)) return false;
-      setLogicalPage(getElementPage(element));
+      navigateToPage(getElementPage(element), 'jump');
       return true;
     },
-    [getElementPage, setLogicalPage]
+    [getElementPage, navigateToPage]
   );
+
+  const finishPageFlip = useCallback(() => {
+    if (!pageFlip) return;
+    commitPage(pageFlip.plan.targetPage);
+    setPageFlip(null);
+  }, [commitPage, pageFlip]);
 
   useImperativeHandle(
     ref,
@@ -168,6 +247,16 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
     }),
     [getProgress, goToProgress, goToSelector]
   );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setPrefersReducedMotion(query.matches);
+    updatePreference();
+    query.addEventListener?.('change', updatePreference);
+    return () => query.removeEventListener?.('change', updatePreference);
+  }, []);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -221,9 +310,13 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
 
   useEffect(() => {
     pendingProgressRef.current = initialProgress;
+    measuredImageSourcesRef.current.clear();
     setCurrentPage(0);
+    setVisualPage(0);
     setPageCount(1);
     setIsPaginationReady(false);
+    setPageFlip(null);
+    setQueuedNavigation(null);
   }, [contentKey]);
 
   useLayoutEffect(() => {
@@ -237,11 +330,13 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
         Math.ceil((contentWidth + layout.columnGap - 1) / layout.pageStep)
       );
       const targetPage = Math.round(pendingProgressRef.current * Math.max(0, nextPageCount - 1));
+      const targetSpread = Math.floor(targetPage / layout.pagesPerSpread) * layout.pagesPerSpread;
 
       setPageCount(nextPageCount);
-      setCurrentPage(
-        Math.floor(targetPage / layout.pagesPerSpread) * layout.pagesPerSpread
-      );
+      setCurrentPage(targetSpread);
+      setVisualPage(targetSpread);
+      setPageFlip(null);
+      setQueuedNavigation(null);
       setIsPaginationReady(true);
     });
 
@@ -280,6 +375,43 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
   }, [getProgress, isPaginationReady]);
 
   useEffect(() => {
+    if (pageFlip?.phase !== 'preparing') return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setPageFlip((current) => current?.plan === pageFlip.plan
+        ? { ...current, phase: 'turning', progress: 1 }
+        : current);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [pageFlip]);
+
+  useEffect(() => {
+    if (pageFlip?.phase !== 'turning') return;
+
+    const timeoutId = window.setTimeout(
+      finishPageFlip,
+      pageFlip.plan.motion === 'turn' ? 720 : 480
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [finishPageFlip, pageFlip]);
+
+  useEffect(() => {
+    if (!prefersReducedMotion || !pageFlip) return;
+    finishPageFlip();
+  }, [finishPageFlip, pageFlip, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (pageFlip || !queuedNavigation) return;
+
+    const nextNavigation = queuedNavigation;
+    setQueuedNavigation(null);
+    const frameId = window.requestAnimationFrame(() => {
+      navigateToPage(nextNavigation.page, nextNavigation.motion);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [navigateToPage, pageFlip, queuedNavigation]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, button, [contenteditable="true"]')) return;
@@ -300,18 +432,18 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
         goPrevious();
       } else if (event.key === 'Home') {
         event.preventDefault();
-        setLogicalPage(0);
+        navigateToPage(0, 'jump');
       } else if (event.key === 'End') {
         event.preventDefault();
-        setLogicalPage(lastSpreadStart);
+        navigateToPage(lastSpreadStart, 'jump');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goNext, goPrevious, lastSpreadStart, pageDirection, setLogicalPage]);
+  }, [goNext, goPrevious, lastSpreadStart, navigateToPage, pageDirection]);
 
-  const transform = `${pageDirection === 'rtl' ? '' : '-'}${currentPage * layout.pageStep}px`;
+  const transform = `${pageDirection === 'rtl' ? '' : '-'}${visualPage * layout.pageStep}px`;
   const visibleEndPage = Math.min(pageCount, currentPage + layout.pagesPerSpread);
   const pageLabel = layout.pagesPerSpread === 2 && visibleEndPage > currentPage + 1
     ? `Pages ${currentPage + 1}-${visibleEndPage} of ${pageCount}`
@@ -360,25 +492,48 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
           <ChevronLeft size={28} strokeWidth={1.5} />
         </button>
 
-        <div
-          ref={viewportRef}
-          className="book-viewport"
+        <div className="book-object">
+          <span className="book-ambient-shadow" aria-hidden="true" />
+          <span className="book-cover-board" aria-hidden="true" />
+          <span className="book-page-block" aria-hidden="true" />
+          <div
+            ref={viewportRef}
+            className="book-viewport"
           data-pages-per-spread={layout.pagesPerSpread}
           data-page-direction={pageDirection}
+          aria-busy={pageFlip ? 'true' : undefined}
           tabIndex={0}
           onKeyUp={handleViewportKeyUp}
-        >
+          >
           <article
             ref={readerRef}
             className={`reader book-flow ${showImages ? '' : 'images-hidden'}`}
             style={readerStyle}
-            onLoadCapture={() => setContentRevision((revision) => revision + 1)}
+            onLoadCapture={(event) => {
+              const image = event.target;
+              if (!(image instanceof HTMLImageElement)) return;
+
+              const source = image.currentSrc || image.src;
+              if (measuredImageSourcesRef.current.has(source)) return;
+              measuredImageSourcesRef.current.add(source);
+              setContentRevision((revision) => revision + 1);
+            }}
             onMouseUp={onMouseUp}
           >
             {toolbar}
             <div className="reader-content" dir={textDirection} dangerouslySetInnerHTML={{ __html: html }} />
           </article>
           <span className="book-gutter" aria-hidden="true" />
+          {pageFlip ? (
+            <PageFlipLayer
+              plan={pageFlip.plan}
+              phase={pageFlip.phase}
+              progress={pageFlip.progress}
+              layout={layout}
+              onAnimationEnd={finishPageFlip}
+            />
+          ) : null}
+          </div>
         </div>
 
         <button
@@ -411,7 +566,7 @@ export const BookViewport = forwardRef<BookViewportHandle, BookViewportProps>(fu
             step={layout.pagesPerSpread}
             value={Math.min(currentPage, Math.max(0, pageCount - 1))}
             aria-label="Reading page"
-            onChange={(event) => setLogicalPage(Number(event.currentTarget.value))}
+            onChange={(event) => navigateToPage(Number(event.currentTarget.value), 'instant')}
           />
         </label>
         {onAddBookmark ? (
